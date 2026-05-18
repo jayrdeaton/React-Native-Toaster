@@ -3,6 +3,7 @@ import { Dimensions, Image, Keyboard, Platform, StyleSheet, Text, View, type Vie
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, {
   Extrapolation,
+  FadeInDown,
   FadeInUp,
   FadeOutDown,
   FadeOutUp,
@@ -94,11 +95,12 @@ const ToastItem = ({ backgroundColor, duration, Icon, index, isTop, levelColor, 
     transform: [{ translateX: translateX.value }]
   }))
 
-  const exiting = isTop ? FadeOutUp.duration(160) : FadeOutDown.duration(160)
-  const marginStyle = position === 'bottom' ? { marginBottom: index * STACK_OFFSET } : { marginTop: index * STACK_OFFSET }
+  const entering = position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)
+  const exiting = position === 'bottom' ? (isTop ? FadeOutUp.duration(160) : FadeOutDown.duration(160)) : (isTop ? FadeOutDown.duration(160) : FadeOutUp.duration(160))
+  const marginStyle = position === 'bottom' ? { bottom: 0, marginBottom: index * STACK_OFFSET } : { marginTop: index * STACK_OFFSET, top: 0 }
 
   return (
-    <Animated.View entering={FadeInUp.duration(220)} exiting={exiting} layout={LinearTransition.duration(220)} style={[styles.itemContainer, marginStyle]}>
+    <Animated.View entering={entering} exiting={exiting} layout={LinearTransition.duration(220)} style={[styles.itemContainer, marginStyle]}>
       <GestureDetector gesture={gesture}>
         <Animated.View style={[styles.card, { backgroundColor: backgroundColor ?? '#2c2c2e' }, swipeStyle]}>
           {toast.image ? (
@@ -158,11 +160,11 @@ export const Toaster = ({ backgroundColor, duration = 7000, Icon, keyboardAware 
     <Animated.View pointerEvents='box-none' style={[styles.stack, stackStyle, wrapperStyle]}>
       {hiddenCount > 0 ? (
         <Animated.View
-          entering={FadeInUp.duration(220)}
-          exiting={FadeOutDown.duration(160)}
+          entering={position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)}
+          exiting={position === 'bottom' ? FadeOutDown.duration(160) : FadeOutUp.duration(160)}
           layout={LinearTransition.duration(220)}
           pointerEvents='none'
-          style={[styles.badge, { bottom: visibleToasts.length * STACK_OFFSET + 12 }]}
+          style={[styles.badge, position === 'bottom' ? { bottom: visibleToasts.length * STACK_OFFSET + 12 } : { top: visibleToasts.length * STACK_OFFSET + 12 }]}
         >
           <View style={styles.badgePill}>
             <Text style={styles.badgeText}>{hiddenCount} more</Text>
@@ -232,7 +234,6 @@ const styles = StyleSheet.create({
     width: 4
   },
   itemContainer: {
-    bottom: 0,
     left: 0,
     position: 'absolute',
     right: 0
