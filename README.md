@@ -4,7 +4,7 @@ Stacking, animated toast notifications for React Native. Toasts stack on top of 
 
 ## Features
 
-- Stacking toasts with animated entry, exit, and reflow
+- Stacking toasts from the top or bottom edge with animated entry, exit, and reflow
 - Swipe-to-dismiss with spring snap-back below threshold
 - Auto-dismiss with per-toast elapsed time tracking (resumable across re-renders)
 - Keyboard-aware positioning — shifts above the software keyboard automatically
@@ -129,6 +129,16 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
   }}
 />
 ```
+
+### Top position
+
+Toasts stack downward from the top edge. Entry and exit animations flip automatically — new toasts drop in from above, and the stack grows downward.
+
+```tsx
+<Toaster position='top' />
+```
+
+The `keyboardAware` prop has no effect when `position='top'` since the keyboard doesn't overlap the top of the screen.
 
 ### Portal behavior
 
