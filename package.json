@@ -1,0 +1,76 @@
+{
+  "name": "@rific/react-native-toaster",
+  "version": "0.1.0",
+  "description": "Stacking, animated toast notifications for React Native with history and swipe-to-dismiss",
+  "license": "MIT",
+  "author": "Jay Deaton",
+  "access": "public",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "fix": "eslint src --fix",
+    "lint": "eslint src",
+    "prepublishOnly": "npm run build",
+    "preversion": "npm run lint && npm test",
+    "release": "git push --follow-tags",
+    "release:major": "npm version major && git push --follow-tags",
+    "release:minor": "npm version minor && git push --follow-tags",
+    "release:patch": "npm version patch && git push --follow-tags",
+    "test": "jest",
+    "test:watch": "jest --watchAll",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=17.0.0",
+    "react-native": ">=0.70.0",
+    "react-native-gesture-handler": ">=2.0.0",
+    "react-native-reanimated": ">=3.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/jest": "^30.0.0",
+    "@types/react": "^19.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.3",
+    "@typescript-eslint/parser": "^8.59.3",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-react-native": "^5.0.0",
+    "eslint-plugin-simple-import-sort": "^13.0.0",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "prettier": "^3.8.3",
+    "react": "^19.2.6",
+    "ts-jest": "^29.4.9",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.59.3"
+  },
+  "keywords": [
+    "react-native",
+    "toast",
+    "toaster",
+    "notification",
+    "snackbar",
+    "stack",
+    "animated",
+    "swipe"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rific/react-native-toaster"
+  },
+  "bugs": {
+    "url": "https://github.com/rific/react-native-toaster/issues"
+  },
+  "homepage": "https://github.com/rific/react-native-toaster#readme"
+}
