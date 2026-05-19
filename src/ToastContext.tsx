@@ -7,11 +7,7 @@ type ToastState = {
   toasts: Toast[]
 }
 
-type ToastAction =
-  | { toast: Toast; type: 'ADD' }
-  | { id: string; type: 'REMOVE' }
-  | { type: 'CLEAR' }
-  | { type: 'CLEAR_HISTORY' }
+type ToastAction = { toast: Toast; type: 'ADD' } | { id: string; type: 'REMOVE' } | { type: 'CLEAR' } | { type: 'CLEAR_HISTORY' }
 
 const MAX_HISTORY = 100
 

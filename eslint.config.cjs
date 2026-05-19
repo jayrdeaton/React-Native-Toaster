@@ -4,6 +4,7 @@ const simpleImportSort = require('eslint-plugin-simple-import-sort')
 const tsParser = require('@typescript-eslint/parser')
 const eslintReactNative = require('eslint-plugin-react-native')
 const tsEslint = require('typescript-eslint')
+const packageJson = require('eslint-plugin-package-json')
 
 module.exports = defineConfig([
   {
@@ -15,10 +16,20 @@ module.exports = defineConfig([
       }
     }
   },
+  {
+    ignores: ['dist/**', 'node_modules/**', 'lib/**', 'coverage/**', '**/*.js', 'jest.setup.ts', 'jest.config.ts', 'src/__mocks__/**', 'src/__tests__/**']
+  },
   ...tsEslint.configs.recommended,
   prettierRecommended,
+  packageJson.configs.recommended,
   {
-    ignores: ['dist/**', 'node_modules/**', 'lib/**', 'coverage/**', '**/*.js']
+    extends: [packageJson.configs.recommended],
+    files: ['package.json'],
+    rules: {
+      'package-json/order-properties': 'warn',
+      'package-json/sort-collections': 'warn',
+      'package-json/specify-peers-locally': 'off'
+    }
   },
   {
     plugins: {
