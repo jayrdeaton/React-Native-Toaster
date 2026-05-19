@@ -1,4 +1,4 @@
-# @rific/react-native-toaster
+# @rific/toaster
 
 Stacking, animated toast notifications for React Native. Toasts stack on top of each other, auto-dismiss with a configurable timer, and swipe away horizontally. A hidden-count badge appears when the stack exceeds your limit.
 
@@ -16,7 +16,7 @@ Stacking, animated toast notifications for React Native. Toasts stack on top of 
 ## Installation
 
 ```sh
-npm install @rific/react-native-toaster
+npm install @rific/toaster
 ```
 
 ### Peer dependencies
@@ -33,7 +33,7 @@ Wrap your app with `ToastProvider` and place `<Toaster />` wherever toasts shoul
 
 ```tsx
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { ToastProvider, Toaster } from '@rific/react-native-toaster'
+import { ToastProvider, Toaster } from '@rific/toaster'
 
 export default function App() {
   return (
@@ -50,7 +50,7 @@ export default function App() {
 ## Usage
 
 ```tsx
-import { useToast } from '@rific/react-native-toaster'
+import { useToast } from '@rific/toaster'
 
 function SaveButton() {
   const { success, error } = useToast()

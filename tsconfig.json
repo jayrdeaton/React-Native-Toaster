@@ -1,19 +1,21 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
-    "module": "ESNext",
-    "lib": ["ES2019"],
+    "target": "ES2020",
+    "lib": ["ES2020"],
     "jsx": "react-native",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
     "declaration": true,
     "declarationMap": true,
+    "sourceMap": true,
     "outDir": "dist",
     "rootDir": "src",
-    "moduleResolution": "bundler",
-    "types": ["jest", "react-native"]
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true
   },
-  "include": ["src/**/*"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist", "src/__mocks__", "src/__tests__"]
 }
