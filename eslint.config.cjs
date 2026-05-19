@@ -27,8 +27,7 @@ module.exports = defineConfig([
     files: ['package.json'],
     rules: {
       'package-json/order-properties': 'warn',
-      'package-json/sort-collections': 'warn',
-      'package-json/specify-peers-locally': 'off'
+      'package-json/sort-collections': 'warn'
     }
   },
   {
