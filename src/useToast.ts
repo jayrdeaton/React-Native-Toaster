@@ -4,14 +4,14 @@ import { Toast, type ToastLevel } from './Toast'
 import { useToastContext } from './ToastContext'
 
 export const useToast = () => {
-  const { dispatch, state } = useToastContext()
+  const { dispatch, generateId, state } = useToastContext()
 
   const add = useCallback(
     (level: ToastLevel, title: string, caption?: string) => {
-      const toast = new Toast({ caption, level, title })
+      const toast = new Toast({ caption, id: generateId(), level, title })
       dispatch({ toast: { ...toast }, type: 'ADD' })
     },
-    [dispatch]
+    [dispatch, generateId]
   )
 
   const dismiss = useCallback((id: string) => dispatch({ id, type: 'REMOVE' }), [dispatch])

@@ -47,6 +47,12 @@ export default function App() {
 }
 ```
 
+`ToastProvider` accepts an optional `generateId` prop if you need to control how toast IDs are generated. By default IDs use `crypto.randomUUID()` when available and fall back to a `timestamp-sequence` string.
+
+```tsx
+<ToastProvider generateId={() => myIdLibrary.generate()}>
+```
+
 ## Usage
 
 ```tsx
@@ -156,7 +162,7 @@ import { Portal } from 'react-native-paper'
 
 ```ts
 class Toast {
-  id: string         // UUID
+  id: string         // crypto.randomUUID() when available, otherwise `${Date.now()}-${seq}`
   level: ToastLevel  // 'error' | 'warning' | 'info' | 'success'
   title: string | null
   caption: string | null
