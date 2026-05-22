@@ -1,6 +1,6 @@
 import { createContext, type ReactNode, useContext, useReducer } from 'react'
 
-import type { Toast } from './Toast'
+import { defaultGenerateId, type Toast } from './Toast'
 
 type ToastState = {
   history: Toast[]
@@ -29,14 +29,15 @@ function reducer(state: ToastState, action: ToastAction): ToastState {
 
 type ToastContextValue = {
   dispatch: React.Dispatch<ToastAction>
+  generateId: () => string
   state: ToastState
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null)
 
-export const ToastProvider = ({ children }: { children: ReactNode }) => {
+export const ToastProvider = ({ children, generateId = defaultGenerateId }: { children: ReactNode; generateId?: () => string }) => {
   const [state, dispatch] = useReducer(reducer, { history: [], toasts: [] })
-  return <ToastContext.Provider value={{ dispatch, state }}>{children}</ToastContext.Provider>
+  return <ToastContext.Provider value={{ dispatch, generateId, state }}>{children}</ToastContext.Provider>
 }
 
 export const useToastContext = () => {
