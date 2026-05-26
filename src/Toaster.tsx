@@ -1,10 +1,11 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useRef } from 'react'
 import { Dimensions, FlatList, Image, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import Animated, { Extrapolation, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp, interpolate, LinearTransition, runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
+import Animated, { Extrapolation, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp, interpolate, LinearTransition, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { scheduleOnRN } from 'react-native-worklets'
 
 import { paper } from './paper'
-import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from './safeArea'
 import type { Toast, ToastLevel } from './Toast'
 import { useToastContext } from './ToastContext'
 import { useToast } from './useToast'
@@ -82,7 +83,7 @@ const ToastItem = ({ backgroundColor, duration, Icon, index, isTop, levelColor, 
     .onEnd((e) => {
       if (Math.abs(e.translationX) > swipeThreshold) {
         const target = e.translationX > 0 ? screenWidth * 1.5 : -screenWidth * 1.5
-        translateX.value = withTiming(target, { duration: 180 }, () => runOnJS(handleDismiss)())
+        translateX.value = withTiming(target, { duration: 180 }, () => scheduleOnRN(handleDismiss))
       } else {
         translateX.value = withSpring(0)
       }
@@ -126,7 +127,6 @@ type HistoryModalContentProps = {
 const HistoryModalContent = ({ mergedColors, modalBg, modalText }: HistoryModalContentProps) => {
   const { clearHistory, closeHistory, history } = useToast()
   const insets = useSafeAreaInsets()
-  console.log('History modal insets', insets)
   return (
     <View style={[styles.modalContainer, { backgroundColor: modalBg, paddingBottom: insets.bottom, paddingTop: insets.top }]}>
       <View style={styles.modalHeader}>
@@ -171,8 +171,6 @@ export const Toaster = ({ backgroundColor, duration = 7000, Icon, keyboardAware 
   const modalBg = backgroundColor ?? resolvedTheme?.colors.surface ?? '#2c2c2e'
   const modalText = textColor ?? resolvedTheme?.colors.onSurface ?? '#fff'
 
-  const insets = useSafeAreaInsets()
-  console.log('Toaster insets', insets)
   const mergedColors = useMemo(() => ({ ...DEFAULT_LEVEL_COLORS, ...levelColors }), [levelColors])
 
   useEffect(() => {
@@ -221,7 +219,7 @@ export const Toaster = ({ backgroundColor, duration = 7000, Icon, keyboardAware 
 
   const historyModal = (
     <Modal animationType='slide' onRequestClose={closeHistory} visible={historyVisible}>
-      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <SafeAreaProvider>
         <HistoryModalContent mergedColors={mergedColors} modalBg={modalBg} modalText={modalText} />
       </SafeAreaProvider>
     </Modal>
