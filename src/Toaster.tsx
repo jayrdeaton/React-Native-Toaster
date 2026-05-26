@@ -126,6 +126,7 @@ type HistoryModalContentProps = {
 const HistoryModalContent = ({ mergedColors, modalBg, modalText }: HistoryModalContentProps) => {
   const { clearHistory, closeHistory, history } = useToast()
   const insets = useSafeAreaInsets()
+  console.log('History modal insets', insets)
   return (
     <View style={[styles.modalContainer, { backgroundColor: modalBg, paddingBottom: insets.bottom, paddingTop: insets.top }]}>
       <View style={styles.modalHeader}>
@@ -170,6 +171,8 @@ export const Toaster = ({ backgroundColor, duration = 7000, Icon, keyboardAware 
   const modalBg = backgroundColor ?? resolvedTheme?.colors.surface ?? '#2c2c2e'
   const modalText = textColor ?? resolvedTheme?.colors.onSurface ?? '#fff'
 
+  const insets = useSafeAreaInsets()
+  console.log('Toaster insets', insets)
   const mergedColors = useMemo(() => ({ ...DEFAULT_LEVEL_COLORS, ...levelColors }), [levelColors])
 
   useEffect(() => {
