@@ -12,6 +12,7 @@ Stacking, animated toast notifications for React Native. Toasts stack on top of 
 - Four built-in levels: `error`, `warning`, `info`, `success`
 - Optional icon support via any icon library
 - No Portal dependency — place `<Toaster />` wherever you want it
+- Optional `react-native-paper` integration — upgrades cards, buttons, and dividers to Paper components automatically
 
 ## Installation
 
@@ -19,13 +20,21 @@ Stacking, animated toast notifications for React Native. Toasts stack on top of 
 npm install @rific/toaster
 ```
 
-### Peer dependencies
+### Required peer dependencies
 
 ```sh
-npm install react-native-reanimated react-native-gesture-handler
+npm install react-native-reanimated react-native-gesture-handler react-native-worklets
 ```
 
 Follow the setup guides for [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started) and [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation). Your app root also needs `GestureHandlerRootView` from gesture-handler (typically already present if you use React Navigation).
+
+### Optional peer dependencies
+
+```sh
+npm install react-native-safe-area-context   # safe area insets for Toaster and HistoryModal
+npm install expo-haptics                      # haptic feedback on history/clear button press
+npm install react-native-paper               # Paper component upgrades (see below)
+```
 
 ## Setup
 
@@ -78,16 +87,19 @@ function SaveButton() {
 
 ```ts
 const {
-  error,        // (title, caption?) => void
-  warning,      // (title, caption?) => void
-  info,         // (title, caption?) => void
-  success,      // (title, caption?) => void
-  dismiss,      // (id) => void
-  clear,        // () => void — removes all visible toasts
-  clearHistory, // () => void — clears the history log
-  toasts,       // Toast[] — currently visible
-  history,      // Toast[] — up to 100, persists across dismissals
-  toast,        // Toast | undefined — most recent
+  error,          // (title, caption?) => void
+  warning,        // (title, caption?) => void
+  info,           // (title, caption?) => void
+  success,        // (title, caption?) => void
+  dismiss,        // (id) => void
+  clear,          // () => void — removes all visible toasts
+  clearHistory,   // () => void — clears the history log
+  openHistory,    // () => void — opens the history modal
+  closeHistory,   // () => void — closes the history modal
+  toasts,         // Toast[] — currently visible
+  history,        // Toast[] — up to 100, persists across dismissals
+  historyVisible, // boolean — whether the history modal is open
+  toast,          // Toast | undefined — most recent
 } = useToast()
 ```
 
@@ -100,10 +112,16 @@ const {
 | `position` | `'bottom' \| 'top'` | `'bottom'` | Which edge to stack from. |
 | `keyboardAware` | `boolean` | `true` | Shifts above the software keyboard when open. |
 | `backgroundColor` | `string` | `'#2c2c2e'` | Card background color. |
+| `textColor` | `string` | `'#fff'` | Card text color. |
 | `levelColors` | `Partial<Record<ToastLevel, string>>` | — | Override the color per level. |
 | `Icon` | `ComponentType<{ name, size?, color? }>` | — | Icon component from any vector icon library. |
 | `levelIcons` | `Partial<Record<ToastLevel, string>>` | — | Icon name per level, passed to `Icon`. |
-| `wrapperStyle` | `ViewStyle` | — | Style applied to the outer container. |
+| `theme` | `PaperTheme` | — | Paper theme object (`{ colors: { surface, onSurface } }`). Derives `backgroundColor` and `textColor` when set. |
+| `surfaceElevation` | `0 \| 1 \| 2 \| 3 \| 4 \| 5` | `1` | Paper `Surface` elevation. Only used when `react-native-paper` is installed. |
+| `historyModal` | `ReactNode` | `<HistoryModal />` | Override the default history modal with a custom component. |
+| `onHistoryPress` | `() => void` | — | Custom handler for the history button. Defaults to opening the built-in `HistoryModal`. |
+| `toastStyle` | `ViewStyle` | — | Style applied to each toast card. |
+| `wrapperStyle` | `ViewStyle` | — | Style applied to the outer stack container. |
 
 ### With icons
 
@@ -148,7 +166,7 @@ The `keyboardAware` prop has no effect when `position='top'` since the keyboard 
 
 ### Portal behavior
 
-`<Toaster />` is an absolutely-positioned `View`. If you want it to render above modals or other overlays, wrap it yourself:
+When `react-native-paper` is installed, the toast stack is automatically wrapped in a Paper `<Portal>` so it renders above modals and other overlays. Without Paper, `<Toaster />` is an absolutely-positioned `View` that renders in-place. To lift it manually:
 
 ```tsx
 import { Portal } from 'react-native-paper'
@@ -156,6 +174,54 @@ import { Portal } from 'react-native-paper'
 <Portal>
   <Toaster />
 </Portal>
+```
+
+## HistoryModal
+
+`HistoryModal` displays the full toast history in a slide-up modal. It is rendered automatically by `<Toaster />` and controlled via `openHistory` / `closeHistory` from the hook. You can also render it independently if you manage the `onHistoryPress` prop yourself.
+
+```tsx
+import { HistoryModal } from '@rific/toaster'
+
+<HistoryModal
+  backgroundColor='#1c1c1e'
+  textColor='#fff'
+  levelColors={{ error: '#dc2626' }}
+/>
+```
+
+### HistoryModal props
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `backgroundColor` | `string` | `'#2c2c2e'` | Modal background color. |
+| `textColor` | `string` | `'#fff'` | Text and divider color. |
+| `levelColors` | `Partial<Record<ToastLevel, string>>` | — | Override the level indicator color per level. |
+| `style` | `ViewStyle` | — | Style applied to the modal container. |
+
+When `react-native-paper` is installed, the Done button, Clear history button, and row dividers are upgraded to Paper components automatically.
+
+## react-native-paper integration
+
+Install `react-native-paper` as an optional peer dependency to unlock Paper-native UI throughout the package:
+
+| Without Paper | With Paper |
+|---|---|
+| Plain `View` cards | `Surface` with configurable elevation |
+| Plain `Pressable` buttons | `Button` and `IconButton` |
+| Manual `borderBottom` dividers | `Divider` component |
+| Manual portal wrapping | Automatic `Portal` wrapping |
+| No icon adapter | `Icon` adapter wired automatically |
+
+Pass a `theme` prop to `<Toaster />` to derive colors from your Paper theme automatically:
+
+```tsx
+import { useTheme } from 'react-native-paper'
+
+function Root() {
+  const theme = useTheme()
+  return <Toaster theme={theme} />
+}
 ```
 
 ## Toast model
