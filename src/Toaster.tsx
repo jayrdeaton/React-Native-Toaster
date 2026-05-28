@@ -1,38 +1,48 @@
-import { type ComponentType, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Dimensions, FlatList, Image, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
+import { type ComponentType, type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
+import { Dimensions, Image, Keyboard, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, { Extrapolation, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp, interpolate, LinearTransition, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { scheduleOnRN } from 'react-native-worklets'
 
+import { haptics } from './haptics'
+import { HistoryModal } from './HistoryModal'
 import { paper } from './paper'
 import type { Toast, ToastLevel } from './Toast'
+import { LEVEL_COLORS } from './Toast'
 import { useToastContext } from './ToastContext'
 import { useToast } from './useToast'
 
 const STACK_OFFSET = 56
-const BOTTOM_OFFSET = 38
 
-const DEFAULT_LEVEL_COLORS: Record<ToastLevel, string> = {
-  error: '#ef4444',
-  info: '#3b82f6',
-  success: '#22c55e',
-  warning: '#f97316'
+const DEFAULT_LEVEL_ICONS: Record<ToastLevel, string> = {
+  error: 'alert-circle',
+  info: 'information',
+  success: 'check-circle',
+  warning: 'alert'
 }
 
 type IconComponentProps = { color?: string; name: string; size?: number }
+
+function PaperIconAdapter({ color, name, size }: IconComponentProps) {
+  if (!paper) return null
+  return <paper.Icon color={color} size={size ?? 20} source={name} />
+}
 
 export type PaperTheme = { colors: { onSurface: string; surface: string } }
 
 export type ToasterProps = {
   backgroundColor?: string
   duration?: number
+  historyModal?: ReactNode
   Icon?: ComponentType<IconComponentProps>
   keyboardAware?: boolean
   levelColors?: Partial<Record<ToastLevel, string>>
   levelIcons?: Partial<Record<ToastLevel, string>>
   limit?: number
+  onHistoryPress?: () => void
   position?: 'bottom' | 'top'
+  surfaceElevation?: 0 | 1 | 2 | 3 | 4 | 5
   textColor?: string
   theme?: PaperTheme
   toastStyle?: ViewStyle
@@ -49,13 +59,14 @@ type ToastItemProps = {
   levelIcon?: string
   onDismiss: (id: string) => void
   position: 'bottom' | 'top'
+  surfaceElevation?: 0 | 1 | 2 | 3 | 4 | 5
   textColor?: string
   theme?: PaperTheme
   toast: Toast
   toastStyle?: ViewStyle
 }
 
-const ToastItem = ({ backgroundColor, duration, Icon, index, isTop, levelColor, levelIcon, onDismiss, position, textColor, theme, toast, toastStyle }: ToastItemProps) => {
+const ToastItem = ({ backgroundColor, duration, Icon, index, isTop, levelColor, levelIcon, onDismiss, position, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
   const translateX = useSharedValue(0)
   const screenWidth = Dimensions.get('window').width
   const swipeThreshold = screenWidth * 0.4
@@ -78,12 +89,17 @@ const ToastItem = ({ backgroundColor, duration, Icon, index, isTop, levelColor, 
 
   const gesture = Gesture.Pan()
     .onUpdate((e) => {
+      'worklet'
       translateX.value = e.translationX
     })
     .onEnd((e) => {
+      'worklet'
       if (Math.abs(e.translationX) > swipeThreshold) {
         const target = e.translationX > 0 ? screenWidth * 1.5 : -screenWidth * 1.5
-        translateX.value = withTiming(target, { duration: 180 }, () => scheduleOnRN(handleDismiss))
+        translateX.value = withTiming(target, { duration: 180 }, () => {
+          'worklet'
+          scheduleOnRN(handleDismiss)
+        })
       } else {
         translateX.value = withSpring(0)
       }
@@ -102,68 +118,37 @@ const ToastItem = ({ backgroundColor, duration, Icon, index, isTop, levelColor, 
 
   const icon = toast.image ? <Image source={{ uri: toast.image }} style={styles.image} /> : Icon && levelIcon ? <Icon color={levelColor} name={levelIcon} size={20} /> : <View style={[styles.indicator, { backgroundColor: levelColor }]} />
 
+  const cardContent = (
+    <>
+      {icon}
+      <Text numberOfLines={2} style={[styles.label, { color: effectiveText }]}>
+        {toast.title ?? toast.caption}
+      </Text>
+    </>
+  )
+
   return (
     <Animated.View entering={entering} exiting={exiting} layout={LinearTransition.duration(220)} style={[styles.itemContainer, marginStyle]}>
       <GestureDetector gesture={gesture}>
         <Animated.View style={swipeStyle}>
-          <View style={[styles.card, styles.cardShadow, { backgroundColor: effectiveBg }, toastStyle]}>
-            {icon}
-            <Text numberOfLines={2} style={[styles.label, { color: effectiveText }]}>
-              {toast.title ?? toast.caption}
-            </Text>
-          </View>
+          {paper ? (
+            <paper.Surface elevation={surfaceElevation ?? 1} style={[styles.card, toastStyle, backgroundColor ? { backgroundColor } : undefined]}>
+              {cardContent}
+            </paper.Surface>
+          ) : (
+            <View style={[styles.card, styles.cardShadow, { backgroundColor: effectiveBg }, toastStyle]}>{cardContent}</View>
+          )}
         </Animated.View>
       </GestureDetector>
     </Animated.View>
   )
 }
 
-type HistoryModalContentProps = {
-  mergedColors: Record<ToastLevel, string>
-  modalBg: string
-  modalText: string
-}
-
-const HistoryModalContent = ({ mergedColors, modalBg, modalText }: HistoryModalContentProps) => {
-  const { clearHistory, closeHistory, history } = useToast()
-  const insets = useSafeAreaInsets()
-  return (
-    <View style={[styles.modalContainer, { backgroundColor: modalBg, paddingBottom: insets.bottom, paddingTop: insets.top }]}>
-      <View style={styles.modalHeader}>
-        <Text style={[styles.modalTitle, { color: modalText }]}>History</Text>
-        <Pressable hitSlop={8} onPress={closeHistory}>
-          <Text style={[styles.modalClose, { color: modalText }]}>Done</Text>
-        </Pressable>
-      </View>
-      <FlatList
-        contentContainerStyle={history.length === 0 ? styles.emptyContainer : undefined}
-        data={history}
-        keyExtractor={(item) => item.id}
-        ListEmptyComponent={<Text style={[styles.emptyText, { color: modalText }]}>No history</Text>}
-        renderItem={({ item }) => (
-          <View style={[styles.historyItem, { borderBottomColor: modalText + '22' }]}>
-            <View style={[styles.indicator, { backgroundColor: mergedColors[item.level] }]} />
-            <View style={styles.historyContent}>
-              <Text style={[styles.historyTitle, { color: modalText }]}>{item.title ?? item.caption}</Text>
-              {item.title && item.caption ? <Text style={[styles.historyCaption, { color: modalText }]}>{item.caption}</Text> : null}
-              <Text style={[styles.historyTime, { color: modalText }]}>{new Date(item.createdAt).toLocaleTimeString()}</Text>
-            </View>
-          </View>
-        )}
-      />
-      {history.length > 0 ? (
-        <Pressable onPress={clearHistory} style={[styles.clearHistoryButton, { borderTopColor: modalText + '22' }]}>
-          <Text style={styles.clearHistoryText}>Clear history</Text>
-        </Pressable>
-      ) : null}
-    </View>
-  )
-}
-
-export const Toaster = ({ backgroundColor, duration = 7000, Icon, keyboardAware = true, levelColors, levelIcons, limit = 3, position = 'bottom', textColor, theme, toastStyle, wrapperStyle }: ToasterProps) => {
-  const { closeHistory, dismiss, history, historyVisible, openHistory, toasts } = useToast()
+export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, keyboardAware = true, levelColors, levelIcons, limit = 3, onHistoryPress, position = 'bottom', surfaceElevation, textColor, theme, toastStyle, wrapperStyle }: ToasterProps) => {
+  const { clear, dismiss, history, historyVisible, openHistory, toasts } = useToast()
   const { paperTheme } = useToastContext()
   const resolvedTheme = theme ?? paperTheme ?? undefined
+  const insets = useSafeAreaInsets()
   const knownIdsRef = useRef(new Set<string>())
   const keyboardHeight = useSharedValue(0)
   const badgeBg = resolvedTheme?.colors.surface ?? 'rgba(0, 0, 0, 0.6)'
@@ -171,7 +156,20 @@ export const Toaster = ({ backgroundColor, duration = 7000, Icon, keyboardAware 
   const modalBg = backgroundColor ?? resolvedTheme?.colors.surface ?? '#2c2c2e'
   const modalText = textColor ?? resolvedTheme?.colors.onSurface ?? '#fff'
 
-  const mergedColors = useMemo(() => ({ ...DEFAULT_LEVEL_COLORS, ...levelColors }), [levelColors])
+  const mergedColors = useMemo(() => ({ ...LEVEL_COLORS, ...levelColors }), [levelColors])
+  const effectiveIcon = Icon ?? (paper ? PaperIconAdapter : undefined)
+  const effectiveLevelIcons = levelIcons ?? (paper ? DEFAULT_LEVEL_ICONS : undefined)
+
+  const handleHistoryPress = useCallback(() => {
+    if (haptics) void haptics.impactAsync(haptics.ImpactFeedbackStyle.Light)
+    if (onHistoryPress) onHistoryPress()
+    else openHistory()
+  }, [onHistoryPress, openHistory])
+
+  const handleClearPress = useCallback(() => {
+    if (haptics) void haptics.impactAsync(haptics.ImpactFeedbackStyle.Light)
+    clear()
+  }, [clear])
 
   useEffect(() => {
     if (!keyboardAware || position !== 'bottom') return
@@ -190,8 +188,8 @@ export const Toaster = ({ backgroundColor, duration = 7000, Icon, keyboardAware 
   }, [keyboardAware, keyboardHeight, position])
 
   const stackStyle = useAnimatedStyle(() => ({
-    bottom: position === 'bottom' ? Math.max(BOTTOM_OFFSET, keyboardHeight.value) : undefined,
-    top: position === 'top' ? BOTTOM_OFFSET : undefined
+    bottom: position === 'bottom' ? Math.max(insets.bottom, keyboardHeight.value) : undefined,
+    top: position === 'top' ? insets.top : undefined
   }))
 
   const visibleToasts = useMemo(() => toasts.slice(-limit).reverse(), [limit, toasts])
@@ -202,49 +200,59 @@ export const Toaster = ({ backgroundColor, duration = 7000, Icon, keyboardAware 
 
   if (!visibleToasts.length && !historyVisible) return null
 
+  const resolvedHistoryModal = historyModal ?? <HistoryModal backgroundColor={modalBg} levelColors={mergedColors} textColor={modalText} />
+
   const stack = (
     <Animated.View pointerEvents='box-none' style={[styles.stack, stackStyle, wrapperStyle]}>
-      {history.length > 0 ? (
-        <Animated.View entering={position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)} exiting={position === 'bottom' ? FadeOutDown.duration(160) : FadeOutUp.duration(160)} layout={LinearTransition.duration(220)} style={[styles.badge, position === 'bottom' ? { bottom: visibleToasts.length * STACK_OFFSET + 12 } : { top: visibleToasts.length * STACK_OFFSET + 12 }]}>
-          <Pressable onPress={openHistory} style={[styles.badgePill, { backgroundColor: badgeBg }]}>
-            <Text style={[styles.badgeText, { color: badgeTextColor }]}>history</Text>
-          </Pressable>
-        </Animated.View>
-      ) : null}
+      <Animated.View entering={position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)} exiting={position === 'bottom' ? FadeOutDown.duration(160) : FadeOutUp.duration(160)} layout={LinearTransition.duration(220)} style={[styles.stackControls, position === 'bottom' ? { bottom: visibleToasts.length * STACK_OFFSET + 4 } : { top: visibleToasts.length * STACK_OFFSET + 4 }]}>
+        <View style={styles.stackControlsSpacer} />
+        {history.length > 0 ? (
+          paper ? (
+            <paper.Button compact mode='contained' icon='history' onPress={handleHistoryPress}>
+              history
+            </paper.Button>
+          ) : (
+            <Pressable onPress={handleHistoryPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
+              <Text style={[styles.badgeText, { color: badgeTextColor }]}>history</Text>
+            </Pressable>
+          )
+        ) : null}
+        <View style={styles.stackControlsRight}>
+          {paper ? (
+            <paper.IconButton icon='close-circle-outline' onPress={handleClearPress} size={20} />
+          ) : (
+            <Pressable onPress={handleClearPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
+              <Text style={[styles.badgeText, { color: badgeTextColor }]}>✕</Text>
+            </Pressable>
+          )}
+        </View>
+      </Animated.View>
       {visibleToasts.map((toast, index) => (
-        <ToastItem key={toast.id} backgroundColor={backgroundColor} duration={duration} Icon={Icon} index={index} isTop={index === visibleToasts.length - 1} levelColor={mergedColors[toast.level]} levelIcon={levelIcons?.[toast.level]} onDismiss={dismiss} position={position} textColor={textColor} theme={resolvedTheme} toast={toast} toastStyle={toastStyle} />
+        <ToastItem key={toast.id} backgroundColor={backgroundColor} duration={duration} Icon={effectiveIcon} index={index} isTop={index === visibleToasts.length - 1} levelColor={mergedColors[toast.level]} levelIcon={effectiveLevelIcons?.[toast.level]} onDismiss={dismiss} position={position} surfaceElevation={surfaceElevation} textColor={textColor} theme={resolvedTheme} toast={toast} toastStyle={toastStyle} />
       ))}
     </Animated.View>
-  )
-
-  const historyModal = (
-    <Modal animationType='slide' onRequestClose={closeHistory} visible={historyVisible}>
-      <SafeAreaProvider>
-        <HistoryModalContent mergedColors={mergedColors} modalBg={modalBg} modalText={modalText} />
-      </SafeAreaProvider>
-    </Modal>
   )
 
   return (
     <>
       {visibleToasts.length > 0 ? paper ? <paper.Portal>{stack}</paper.Portal> : stack : null}
-      {historyModal}
+      {resolvedHistoryModal}
     </>
   )
 }
 
 const styles = StyleSheet.create({
-  badge: {
-    alignItems: 'center',
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    zIndex: 5
-  },
   badgePill: {
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4
+  },
+  badgePillShadow: {
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6
   },
   badgeText: {
     fontSize: 12
@@ -266,49 +274,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6
   },
-  clearHistoryButton: {
-    alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 16
-  },
-  clearHistoryText: {
-    color: '#ef4444',
-    fontSize: 14
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center'
-  },
-  emptyText: {
-    fontSize: 14,
-    opacity: 0.5
-  },
-  historyCaption: {
-    fontSize: 12,
-    marginTop: 2,
-    opacity: 0.6
-  },
-  historyContent: {
-    flex: 1
-  },
-  historyItem: {
-    alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12
-  },
-  historyTime: {
-    fontSize: 11,
-    marginTop: 4,
-    opacity: 0.4
-  },
-  historyTitle: {
-    fontSize: 14,
-    lineHeight: 20
-  },
   image: {
     borderRadius: 4,
     height: 20,
@@ -329,26 +294,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20
   },
-  modalClose: {
-    fontSize: 16
-  },
-  modalContainer: {
-    flex: 1
-  },
-  modalHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600'
-  },
   stack: {
     left: 0,
     position: 'absolute',
     right: 0
+  },
+  stackControls: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    zIndex: 5
+  },
+  stackControlsRight: {
+    alignItems: 'flex-end',
+    flex: 1,
+    paddingRight: 4
+  },
+  stackControlsSpacer: {
+    flex: 1
   }
 })
