@@ -29,7 +29,7 @@ function PaperIconAdapter({ color, name, size }: IconComponentProps) {
   return <paper.Icon color={color} size={size ?? 20} source={name} />
 }
 
-export type PaperTheme = { colors: { onSurface: string; surface: string } }
+export type PaperTheme = { colors: { background: string; onSurface: string; surface: string } }
 
 export type ToasterProps = {
   backgroundColor?: string
@@ -153,7 +153,7 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
   const keyboardHeight = useSharedValue(0)
   const badgeBg = resolvedTheme?.colors.surface ?? 'rgba(0, 0, 0, 0.6)'
   const badgeTextColor = resolvedTheme?.colors.onSurface ?? '#fff'
-  const modalBg = backgroundColor ?? resolvedTheme?.colors.surface ?? '#2c2c2e'
+  const modalBg = backgroundColor ?? resolvedTheme?.colors.background ?? '#1c1c1e'
   const modalText = textColor ?? resolvedTheme?.colors.onSurface ?? '#fff'
 
   const mergedColors = useMemo(() => ({ ...LEVEL_COLORS, ...levelColors }), [levelColors])
@@ -163,8 +163,8 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
   const handleHistoryPress = useCallback(() => {
     if (haptics) void haptics.impactAsync(haptics.ImpactFeedbackStyle.Light)
     if (onHistoryPress) onHistoryPress()
-    else openHistory()
-  }, [onHistoryPress, openHistory])
+    else { clear(); openHistory() }
+  }, [clear, onHistoryPress, openHistory])
 
   const handleClearPress = useCallback(() => {
     if (haptics) void haptics.impactAsync(haptics.ImpactFeedbackStyle.Light)
@@ -205,21 +205,24 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
   const stack = (
     <Animated.View pointerEvents='box-none' style={[styles.stack, stackStyle, wrapperStyle]}>
       <Animated.View entering={position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)} exiting={position === 'bottom' ? FadeOutDown.duration(160) : FadeOutUp.duration(160)} layout={LinearTransition.duration(220)} style={[styles.stackControls, position === 'bottom' ? { bottom: visibleToasts.length * STACK_OFFSET + 4 } : { top: visibleToasts.length * STACK_OFFSET + 4 }]}>
-        <View style={styles.stackControlsSpacer} />
-        {history.length > 0 ? (
-          paper ? (
-            <paper.Button compact mode='contained' icon='history' onPress={handleHistoryPress}>
-              history
-            </paper.Button>
-          ) : (
-            <Pressable onPress={handleHistoryPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
-              <Text style={[styles.badgeText, { color: badgeTextColor }]}>history</Text>
-            </Pressable>
-          )
-        ) : null}
+        <View style={styles.stackControlsLeft}>
+          {history.length > 0 ? (
+            paper ? (
+              <paper.Chip compact icon='history' onPress={handleHistoryPress} style={styles.chip}>
+                history
+              </paper.Chip>
+            ) : (
+              <Pressable onPress={handleHistoryPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
+                <Text style={[styles.badgeText, { color: badgeTextColor }]}>history</Text>
+              </Pressable>
+            )
+          ) : null}
+        </View>
         <View style={styles.stackControlsRight}>
           {paper ? (
-            <paper.IconButton icon='close-circle-outline' onPress={handleClearPress} size={20} />
+            <paper.Chip compact icon='close-circle-outline' onPress={handleClearPress} style={styles.chip}>
+              clear
+            </paper.Chip>
           ) : (
             <Pressable onPress={handleClearPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
               <Text style={[styles.badgeText, { color: badgeTextColor }]}>✕</Text>
@@ -235,7 +238,7 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
 
   return (
     <>
-      {visibleToasts.length > 0 ? paper ? <paper.Portal>{stack}</paper.Portal> : stack : null}
+      {visibleToasts.length > 0 && !historyVisible ? paper ? <paper.Portal>{stack}</paper.Portal> : stack : null}
       {resolvedHistoryModal}
     </>
   )
@@ -307,12 +310,21 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 5
   },
+  chip: {
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2
+  },
+  stackControlsLeft: {
+    alignItems: 'flex-start',
+    flex: 1,
+    paddingLeft: 16
+  },
   stackControlsRight: {
     alignItems: 'flex-end',
     flex: 1,
-    paddingRight: 4
-  },
-  stackControlsSpacer: {
-    flex: 1
+    paddingRight: 16
   }
 })
