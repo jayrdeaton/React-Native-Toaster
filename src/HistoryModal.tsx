@@ -45,12 +45,13 @@ const HistoryContent = ({ backgroundColor, isSheet, levelColors, style, textColo
     ItemSeparatorComponent: () => divider,
     keyExtractor: (item: (typeof history)[0]) => item.id,
     ListEmptyComponent: <Text style={[styles.emptyText, { color: text }]}>No history</Text>,
-    renderItem,
+    renderItem
   }
 
   return (
-    <View style={[styles.container, { paddingTop: isSheet ? 0 : insets.top }, style]}>
-      <View style={[styles.header, isSheet ? undefined : { backgroundColor: bg }]}>
+    // eslint-disable-next-line react-native/no-inline-styles
+    <View style={[styles.container, { backgroundColor: isSheet ? undefined : bg, paddingTop: isSheet ? 0 : insets.top }, style]}>
+      <View style={[styles.header, isSheet ? undefined : styles.headerModal]}>
         {paper ? (
           <paper.IconButton icon='chevron-down' onPress={closeHistory} />
         ) : (
@@ -70,13 +71,7 @@ const HistoryContent = ({ backgroundColor, isSheet, levelColors, style, textColo
         ) : null}
       </View>
       {divider}
-      <View style={[styles.body, { backgroundColor: bg }]}>
-        {bottomSheet ? (
-          <bottomSheet.BottomSheetFlatList {...listProps} />
-        ) : (
-          <FlatList {...listProps} />
-        )}
-      </View>
+      <View style={[styles.body, { backgroundColor: bg }]}>{bottomSheet ? <bottomSheet.BottomSheetFlatList {...listProps} /> : <FlatList {...listProps} />}</View>
     </View>
   )
 }
@@ -89,7 +84,7 @@ const BlurBackground: React.FC<any> = ({ style }) => {
   const tint = theme?.dark ? 'dark' : 'light'
   return (
     <BlurViewComponent intensity={80} style={[StyleSheet.absoluteFill, style]} tint={tint}>
-      {theme && <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.surface, opacity: 0.5 }]} />}
+      {theme && <View style={[StyleSheet.absoluteFill, styles.blurOverlay, { backgroundColor: theme.colors.surface }]} />}
     </BlurViewComponent>
   )
 }
@@ -115,17 +110,7 @@ export const HistoryModal = (props: HistoryModalProps) => {
   if (bottomSheet) {
     return (
       <View pointerEvents='box-none' style={StyleSheet.absoluteFill}>
-        <bottomSheet.BottomSheet
-          ref={sheetRef}
-          backgroundComponent={blur ? BlurBackground : undefined}
-          backgroundStyle={blur ? undefined : { backgroundColor: bg }}
-          enablePanDownToClose
-          handleIndicatorStyle={{ backgroundColor: text + '44' }}
-          index={historyVisible ? 0 : -1}
-          onClose={closeHistory}
-          snapPoints={[screenHeight * 0.65, screenHeight]}
-          topInset={insets.top}
-        >
+        <bottomSheet.BottomSheet ref={sheetRef} backgroundComponent={blur ? BlurBackground : undefined} backgroundStyle={blur ? undefined : { backgroundColor: bg }} enablePanDownToClose handleIndicatorStyle={{ backgroundColor: text + '44' }} index={historyVisible ? 0 : -1} onClose={closeHistory} snapPoints={[screenHeight * 0.65, screenHeight]} topInset={insets.top}>
           <HistoryContent {...props} isSheet />
         </bottomSheet.BottomSheet>
       </View>
@@ -142,6 +127,9 @@ export const HistoryModal = (props: HistoryModalProps) => {
 }
 
 const styles = StyleSheet.create({
+  blurOverlay: {
+    opacity: 0.5
+  },
   body: {
     flex: 1
   },
@@ -173,6 +161,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 8
+  },
+  headerModal: {
+    paddingHorizontal: 8
   },
   indicator: {
     borderRadius: 3,

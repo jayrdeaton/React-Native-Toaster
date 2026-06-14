@@ -163,7 +163,10 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
   const handleHistoryPress = useCallback(() => {
     if (haptics) void haptics.impactAsync(haptics.ImpactFeedbackStyle.Light)
     if (onHistoryPress) onHistoryPress()
-    else { clear(); openHistory() }
+    else {
+      clear()
+      openHistory()
+    }
   }, [clear, onHistoryPress, openHistory])
 
   const handleClearPress = useCallback(() => {
