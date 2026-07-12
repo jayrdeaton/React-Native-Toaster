@@ -7,6 +7,7 @@ import { bottomSheet } from './bottomSheet'
 import { paper } from './paper'
 import type { ToastLevel } from './Toast'
 import { LEVEL_COLORS } from './Toast'
+import { useFallbackColors } from './useFallbackColors'
 import { useToast } from './useToast'
 
 export type HistoryModalProps = {
@@ -21,10 +22,11 @@ type HistoryContentProps = HistoryModalProps & { isSheet?: boolean }
 const HistoryContent = ({ backgroundColor, isSheet, levelColors, style, textColor }: HistoryContentProps) => {
   const { clearHistory, closeHistory, history } = useToast()
   const insets = useSafeAreaInsets()
+  const fallback = useFallbackColors()
 
   const mergedColors = { ...LEVEL_COLORS, ...levelColors }
-  const bg = backgroundColor ?? '#2c2c2e'
-  const text = textColor ?? '#fff'
+  const bg = backgroundColor ?? fallback.surface
+  const text = textColor ?? fallback.text
 
   const divider = paper ? <paper.Divider /> : <View style={[styles.divider, { backgroundColor: text + '22' }]} />
 
@@ -79,12 +81,13 @@ const HistoryContent = ({ backgroundColor, isSheet, levelColors, style, textColo
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const BlurBackground: React.FC<any> = ({ style }) => {
   const theme = paper ? paper.useTheme() : null
+  const fallback = useFallbackColors()
   const BlurViewComponent = blur?.BlurView
   if (!BlurViewComponent) return null
-  const tint = theme?.dark ? 'dark' : 'light'
+  const tint = (theme?.dark ?? fallback.isDark) ? 'dark' : 'light'
   return (
     <BlurViewComponent intensity={80} style={[StyleSheet.absoluteFill, style]} tint={tint}>
-      {theme && <View style={[StyleSheet.absoluteFill, styles.blurOverlay, { backgroundColor: theme.colors.surface }]} />}
+      <View style={[StyleSheet.absoluteFill, styles.blurOverlay, { backgroundColor: theme?.colors.surface ?? fallback.surface }]} />
     </BlurViewComponent>
   )
 }
@@ -94,8 +97,9 @@ export const HistoryModal = (props: HistoryModalProps) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sheetRef = useRef<any>(null)
   const insets = useSafeAreaInsets()
-  const bg = props.backgroundColor ?? '#2c2c2e'
-  const text = props.textColor ?? '#fff'
+  const fallback = useFallbackColors()
+  const bg = props.backgroundColor ?? fallback.surface
+  const text = props.textColor ?? fallback.text
   const screenHeight = Dimensions.get('window').height
 
   useEffect(() => {

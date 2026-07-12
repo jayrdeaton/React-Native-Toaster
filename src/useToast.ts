@@ -7,8 +7,8 @@ export const useToast = () => {
   const { dispatch, generateId, maxHistory, state } = useToastContext()
 
   const add = useCallback(
-    (level: ToastLevel, title: string, caption?: string) => {
-      const toast = new Toast({ caption, id: generateId(), level, title })
+    (level: ToastLevel, title: string, caption?: string, image?: string) => {
+      const toast = new Toast({ caption, id: generateId(), image, level, title })
       dispatch({ maxHistory, toast: { ...toast }, type: 'ADD' })
     },
     [dispatch, generateId, maxHistory]
@@ -20,10 +20,10 @@ export const useToast = () => {
   const openHistory = useCallback(() => dispatch({ type: 'OPEN_HISTORY' }), [dispatch])
   const closeHistory = useCallback(() => dispatch({ type: 'CLOSE_HISTORY' }), [dispatch])
 
-  const error = useCallback((title: string, caption?: string) => add('error', title, caption), [add])
-  const info = useCallback((title: string, caption?: string) => add('info', title, caption), [add])
-  const success = useCallback((title: string, caption?: string) => add('success', title, caption), [add])
-  const warning = useCallback((title: string, caption?: string) => add('warning', title, caption), [add])
+  const error = useCallback((title: string, caption?: string, image?: string) => add('error', title, caption, image), [add])
+  const info = useCallback((title: string, caption?: string, image?: string) => add('info', title, caption, image), [add])
+  const success = useCallback((title: string, caption?: string, image?: string) => add('success', title, caption, image), [add])
+  const warning = useCallback((title: string, caption?: string, image?: string) => add('warning', title, caption, image), [add])
 
   return {
     clear,
