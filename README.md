@@ -5,12 +5,14 @@ Stacking, animated toast notifications for React Native. Toasts stack on top of 
 ## Features
 
 - Stacking toasts from the top or bottom edge with animated entry, exit, and reflow
+- Stack spacing automatically adapts to each toast's real measured height — long captions or wrapped titles never overlap the toast next to them
 - Swipe-to-dismiss with spring snap-back below threshold
 - Auto-dismiss with per-toast elapsed time tracking (resumable across re-renders)
 - Keyboard-aware positioning — shifts above the software keyboard automatically
 - Toast history (up to 100 entries, survives individual dismissals)
 - Four built-in levels: `error`, `warning`, `info`, `success`
 - Optional icon support via any icon library
+- Optional image support — pass an image URI to render it in place of the level icon
 - No Portal dependency — place `<Toaster />` wherever you want it
 - Optional `react-native-paper` integration — upgrades cards, buttons, and dividers to Paper components automatically
 
@@ -87,10 +89,10 @@ function SaveButton() {
 
 ```ts
 const {
-  error,          // (title, caption?) => void
-  warning,        // (title, caption?) => void
-  info,           // (title, caption?) => void
-  success,        // (title, caption?) => void
+  error,          // (title, caption?, image?) => void
+  warning,        // (title, caption?, image?) => void
+  info,           // (title, caption?, image?) => void
+  success,        // (title, caption?, image?) => void
   dismiss,        // (id) => void
   clear,          // () => void — removes all visible toasts
   clearHistory,   // () => void — clears the history log
@@ -140,6 +142,16 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
   }}
 />
 ```
+
+### Captions and images
+
+When both a title and caption are provided, the card shows the title as the primary line and the caption as a secondary line beneath it — no truncation to a single line. Each toast's rendered height is measured automatically, so a long caption never overlaps the toast stacked next to it.
+
+```tsx
+success('Photo uploaded', 'Compressed and saved to your library', 'https://example.com/photo.jpg')
+```
+
+Passing an `image` URI renders it in a small square in place of the level icon.
 
 ### Custom colors
 

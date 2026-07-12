@@ -1,5 +1,5 @@
-import { type ComponentType, type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Dimensions, Image, Keyboard, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
+import { type ComponentType, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Dimensions, Image, Keyboard, type LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, { Extrapolation, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp, interpolate, LinearTransition, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -8,12 +8,12 @@ import { scheduleOnRN } from 'react-native-worklets'
 import { haptics } from './haptics'
 import { HistoryModal } from './HistoryModal'
 import { paper } from './paper'
+import { computeStackOffsets } from './stackLayout'
 import type { Toast, ToastLevel } from './Toast'
 import { LEVEL_COLORS } from './Toast'
 import { useToastContext } from './ToastContext'
+import { useFallbackColors } from './useFallbackColors'
 import { useToast } from './useToast'
-
-const STACK_OFFSET = 56
 
 const DEFAULT_LEVEL_ICONS: Record<ToastLevel, string> = {
   error: 'alert-circle',
@@ -53,11 +53,12 @@ type ToastItemProps = {
   backgroundColor?: string
   duration: number
   Icon?: ComponentType<IconComponentProps>
-  index: number
   isTop: boolean
   levelColor: string
   levelIcon?: string
+  offset: number
   onDismiss: (id: string) => void
+  onMeasure: (id: string, height: number) => void
   position: 'bottom' | 'top'
   surfaceElevation?: 0 | 1 | 2 | 3 | 4 | 5
   textColor?: string
@@ -66,15 +67,17 @@ type ToastItemProps = {
   toastStyle?: ViewStyle
 }
 
-const ToastItem = ({ backgroundColor, duration, Icon, index, isTop, levelColor, levelIcon, onDismiss, position, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
+const ToastItem = ({ backgroundColor, duration, Icon, isTop, levelColor, levelIcon, offset, onDismiss, onMeasure, position, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
   const translateX = useSharedValue(0)
   const screenWidth = Dimensions.get('window').width
   const swipeThreshold = screenWidth * 0.4
+  const fallback = useFallbackColors()
 
-  const effectiveBg = backgroundColor ?? theme?.colors.surface ?? '#2c2c2e'
-  const effectiveText = textColor ?? theme?.colors.onSurface ?? '#fff'
+  const effectiveBg = backgroundColor ?? theme?.colors.surface ?? fallback.surface
+  const effectiveText = textColor ?? theme?.colors.onSurface ?? fallback.text
 
   const handleDismiss = useCallback(() => onDismiss(toast.id), [onDismiss, toast.id])
+  const handleLayout = useCallback((e: LayoutChangeEvent) => onMeasure(toast.id, e.nativeEvent.layout.height), [onMeasure, toast.id])
 
   useEffect(() => {
     const elapsed = Math.max(0, Date.now() - new Date(toast.createdAt).getTime())
@@ -114,21 +117,28 @@ const ToastItem = ({ backgroundColor, duration, Icon, index, isTop, levelColor, 
 
   const entering = position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)
   const exiting = position === 'bottom' ? (isTop ? FadeOutUp.duration(160) : FadeOutDown.duration(160)) : isTop ? FadeOutDown.duration(160) : FadeOutUp.duration(160)
-  const marginStyle = position === 'bottom' ? { bottom: 0, marginBottom: index * STACK_OFFSET } : { marginTop: index * STACK_OFFSET, top: 0 }
+  const marginStyle = position === 'bottom' ? { bottom: 0, marginBottom: offset } : { marginTop: offset, top: 0 }
 
   const icon = toast.image ? <Image source={{ uri: toast.image }} style={styles.image} /> : Icon && levelIcon ? <Icon color={levelColor} name={levelIcon} size={20} /> : <View style={[styles.indicator, { backgroundColor: levelColor }]} />
 
   const cardContent = (
     <>
       {icon}
-      <Text numberOfLines={2} style={[styles.label, { color: effectiveText }]}>
-        {toast.title ?? toast.caption}
-      </Text>
+      <View style={styles.textColumn}>
+        <Text numberOfLines={2} style={[styles.label, { color: effectiveText }]}>
+          {toast.title ?? toast.caption}
+        </Text>
+        {toast.title && toast.caption ? (
+          <Text numberOfLines={3} style={[styles.caption, { color: effectiveText }]}>
+            {toast.caption}
+          </Text>
+        ) : null}
+      </View>
     </>
   )
 
   return (
-    <Animated.View entering={entering} exiting={exiting} layout={LinearTransition.duration(220)} style={[styles.itemContainer, marginStyle]}>
+    <Animated.View entering={entering} exiting={exiting} layout={LinearTransition.duration(220)} onLayout={handleLayout} style={[styles.itemContainer, marginStyle]}>
       <GestureDetector gesture={gesture}>
         <Animated.View style={swipeStyle}>
           {paper ? (
@@ -151,10 +161,12 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
   const insets = useSafeAreaInsets()
   const knownIdsRef = useRef(new Set<string>())
   const keyboardHeight = useSharedValue(0)
-  const badgeBg = resolvedTheme?.colors.surface ?? 'rgba(0, 0, 0, 0.6)'
-  const badgeTextColor = resolvedTheme?.colors.onSurface ?? '#fff'
-  const modalBg = backgroundColor ?? resolvedTheme?.colors.background ?? '#1c1c1e'
-  const modalText = textColor ?? resolvedTheme?.colors.onSurface ?? '#fff'
+  const [heights, setHeights] = useState<Record<string, number>>({})
+  const fallback = useFallbackColors()
+  const badgeBg = resolvedTheme?.colors.surface ?? fallback.badgeBg
+  const badgeTextColor = resolvedTheme?.colors.onSurface ?? fallback.text
+  const modalBg = backgroundColor ?? resolvedTheme?.colors.background ?? fallback.background
+  const modalText = textColor ?? resolvedTheme?.colors.onSurface ?? fallback.text
 
   const mergedColors = useMemo(() => ({ ...LEVEL_COLORS, ...levelColors }), [levelColors])
   const effectiveIcon = Icon ?? (paper ? PaperIconAdapter : undefined)
@@ -173,6 +185,10 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
     if (haptics) void haptics.impactAsync(haptics.ImpactFeedbackStyle.Light)
     clear()
   }, [clear])
+
+  const handleMeasure = useCallback((id: string, height: number) => {
+    setHeights((prev) => (prev[id] === height ? prev : { ...prev, [id]: height }))
+  }, [])
 
   useEffect(() => {
     if (!keyboardAware || position !== 'bottom') return
@@ -197,8 +213,30 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
 
   const visibleToasts = useMemo(() => toasts.slice(-limit).reverse(), [limit, toasts])
 
+  const { offsets, totalHeight: totalStackHeight } = useMemo(
+    () =>
+      computeStackOffsets(
+        visibleToasts.map((t) => t.id),
+        heights
+      ),
+    [visibleToasts, heights]
+  )
+
   useEffect(() => {
     knownIdsRef.current = new Set(toasts.map((t) => t.id))
+  }, [toasts])
+
+  useEffect(() => {
+    setHeights((prev) => {
+      const ids = new Set(toasts.map((t) => t.id))
+      let changed = false
+      const next: Record<string, number> = {}
+      for (const id in prev) {
+        if (ids.has(id)) next[id] = prev[id]
+        else changed = true
+      }
+      return changed ? next : prev
+    })
   }, [toasts])
 
   if (!visibleToasts.length && !historyVisible) return null
@@ -207,7 +245,7 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
 
   const stack = (
     <Animated.View pointerEvents='box-none' style={[styles.stack, stackStyle, wrapperStyle]}>
-      <Animated.View entering={position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)} exiting={position === 'bottom' ? FadeOutDown.duration(160) : FadeOutUp.duration(160)} layout={LinearTransition.duration(220)} style={[styles.stackControls, position === 'bottom' ? { bottom: visibleToasts.length * STACK_OFFSET + 4 } : { top: visibleToasts.length * STACK_OFFSET + 4 }]}>
+      <Animated.View entering={position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)} exiting={position === 'bottom' ? FadeOutDown.duration(160) : FadeOutUp.duration(160)} layout={LinearTransition.duration(220)} style={[styles.stackControls, position === 'bottom' ? { bottom: totalStackHeight + 4 } : { top: totalStackHeight + 4 }]}>
         <View style={styles.stackControlsLeft}>
           {history.length > 0 ? (
             paper ? (
@@ -234,7 +272,7 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
         </View>
       </Animated.View>
       {visibleToasts.map((toast, index) => (
-        <ToastItem key={toast.id} backgroundColor={backgroundColor} duration={duration} Icon={effectiveIcon} index={index} isTop={index === visibleToasts.length - 1} levelColor={mergedColors[toast.level]} levelIcon={effectiveLevelIcons?.[toast.level]} onDismiss={dismiss} position={position} surfaceElevation={surfaceElevation} textColor={textColor} theme={resolvedTheme} toast={toast} toastStyle={toastStyle} />
+        <ToastItem key={toast.id} backgroundColor={backgroundColor} duration={duration} Icon={effectiveIcon} isTop={index === visibleToasts.length - 1} levelColor={mergedColors[toast.level]} levelIcon={effectiveLevelIcons?.[toast.level]} offset={offsets[index]} onDismiss={dismiss} onMeasure={handleMeasure} position={position} surfaceElevation={surfaceElevation} textColor={textColor} theme={resolvedTheme} toast={toast} toastStyle={toastStyle} />
       ))}
     </Animated.View>
   )
@@ -295,8 +333,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0
   },
+  caption: {
+    fontSize: 12,
+    lineHeight: 16,
+    opacity: 0.75
+  },
   label: {
-    flex: 1,
     fontSize: 14,
     lineHeight: 20
   },
@@ -329,5 +371,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     flex: 1,
     paddingRight: 16
+  },
+  textColumn: {
+    flex: 1,
+    gap: 2
   }
 })

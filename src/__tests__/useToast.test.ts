@@ -31,6 +31,12 @@ describe('useToast', () => {
     expect(result.current.toasts[0].caption).toBe('Details here')
   })
 
+  it('adds a toast with an image', () => {
+    const { result } = renderHook(() => useToast(), { wrapper })
+    act(() => result.current.success('Uploaded', 'Photo saved', 'https://example.com/photo.jpg'))
+    expect(result.current.toasts[0].image).toBe('https://example.com/photo.jpg')
+  })
+
   it('records toast in history', () => {
     const { result } = renderHook(() => useToast(), { wrapper })
     act(() => result.current.success('Done!'))
