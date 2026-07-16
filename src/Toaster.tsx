@@ -1,4 +1,4 @@
-import { type ComponentType, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentType, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dimensions, Image, Keyboard, type LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, { Extrapolation, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp, interpolate, LinearTransition, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
@@ -67,7 +67,7 @@ type ToastItemProps = {
   toastStyle?: ViewStyle
 }
 
-const ToastItem = ({ backgroundColor, duration, Icon, isTop, levelColor, levelIcon, offset, onDismiss, onMeasure, position, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
+const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, levelIcon, offset, onDismiss, onMeasure, position, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
   const translateX = useSharedValue(0)
   const screenWidth = Dimensions.get('window').width
   const swipeThreshold = screenWidth * 0.4
@@ -90,23 +90,27 @@ const ToastItem = ({ backgroundColor, duration, Icon, isTop, levelColor, levelIc
     return () => clearTimeout(timer)
   }, [toast.id, toast.createdAt, duration, handleDismiss])
 
-  const gesture = Gesture.Pan()
-    .onUpdate((e) => {
-      'worklet'
-      translateX.value = e.translationX
-    })
-    .onEnd((e) => {
-      'worklet'
-      if (Math.abs(e.translationX) > swipeThreshold) {
-        const target = e.translationX > 0 ? screenWidth * 1.5 : -screenWidth * 1.5
-        translateX.value = withTiming(target, { duration: 180 }, () => {
+  const gesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .onUpdate((e) => {
           'worklet'
-          scheduleOnRN(handleDismiss)
+          translateX.value = e.translationX
         })
-      } else {
-        translateX.value = withSpring(0)
-      }
-    })
+        .onEnd((e) => {
+          'worklet'
+          if (Math.abs(e.translationX) > swipeThreshold) {
+            const target = e.translationX > 0 ? screenWidth * 1.5 : -screenWidth * 1.5
+            translateX.value = withTiming(target, { duration: 180 }, (finished) => {
+              'worklet'
+              if (finished) scheduleOnRN(handleDismiss)
+            })
+          } else {
+            translateX.value = withSpring(0)
+          }
+        }),
+    [handleDismiss, screenWidth, swipeThreshold, translateX]
+  )
 
   const opacity = useDerivedValue(() => interpolate(Math.abs(translateX.value), [0, swipeThreshold], [1, 0.4], Extrapolation.CLAMP))
 
@@ -152,7 +156,8 @@ const ToastItem = ({ backgroundColor, duration, Icon, isTop, levelColor, levelIc
       </GestureDetector>
     </Animated.View>
   )
-}
+})
+ToastItem.displayName = 'ToastItem'
 
 export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, keyboardAware = true, levelColors, levelIcons, limit = 3, onHistoryPress, position = 'bottom', surfaceElevation, textColor, theme, toastStyle, wrapperStyle }: ToasterProps) => {
   const { clear, dismiss, history, historyVisible, openHistory, toasts } = useToast()
