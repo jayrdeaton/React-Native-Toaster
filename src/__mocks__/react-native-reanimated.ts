@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React from 'react'
+import React, { useRef } from 'react'
 
 const noop = () => {}
 const identity = (x: any) => x
@@ -10,11 +10,13 @@ const Animated = {
 
 export default Animated
 
-export const useSharedValue = (init: any) => ({ value: init })
+// Real reanimated shared values are stable across re-renders (ref-like) —
+// mirror that here so memoization deps that include a shared value behave correctly.
+export const useSharedValue = (init: any) => useRef({ value: init }).current
 export const useAnimatedStyle = (fn: () => any) => fn()
 export const useDerivedValue = (fn: () => any) => ({ value: fn() })
 export const withTiming = (toValue: any, _config?: any, callback?: any) => {
-  callback?.()
+  callback?.(true)
   return toValue
 }
 export const withSpring = identity
