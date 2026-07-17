@@ -25,15 +25,14 @@ npm install @rific/toaster
 ### Required peer dependencies
 
 ```sh
-npm install react-native-reanimated react-native-gesture-handler react-native-worklets
+npm install react-native-reanimated react-native-gesture-handler react-native-worklets react-native-safe-area-context
 ```
 
-Follow the setup guides for [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started) and [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation). Your app root also needs `GestureHandlerRootView` from gesture-handler (typically already present if you use React Navigation).
+Requires `react-native-reanimated` **v4 or newer** (the toast stack uses `react-native-worklets`, which ships alongside Reanimated 4). Follow the setup guides for [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started) and [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation). Your app root also needs `GestureHandlerRootView` from gesture-handler (typically already present if you use React Navigation), and a `SafeAreaProvider` from `react-native-safe-area-context` somewhere above `<Toaster />` (also typically already present — React Navigation and Expo Router both set this up for you).
 
 ### Optional peer dependencies
 
 ```sh
-npm install react-native-safe-area-context   # safe area insets for Toaster and HistoryModal
 npm install expo-haptics                      # haptic feedback on history/clear button press
 npm install react-native-paper               # Paper component upgrades (see below)
 ```
@@ -210,8 +209,38 @@ import { HistoryModal } from '@rific/toaster'
 | `textColor` | `string` | `'#fff'` | Text and divider color. |
 | `levelColors` | `Partial<Record<ToastLevel, string>>` | — | Override the level indicator color per level. |
 | `style` | `ViewStyle` | — | Style applied to the modal container. |
+| `Container` | `ComponentType<HistoryContainerProps>` | vanilla `Modal` | Swap out the presentation wrapper — see below. |
 
 When `react-native-paper` is installed, the Done button, Clear history button, and row dividers are upgraded to Paper components automatically.
+
+### Custom Container (e.g. a bottom sheet)
+
+`HistoryModal` has no dependency on any sheet library — it renders a vanilla `Modal` by default. If you want a bottom-sheet presentation instead, pass your own `Container` component built on whatever library you like (e.g. `@gorhom/bottom-sheet`):
+
+```tsx
+import BottomSheet from '@gorhom/bottom-sheet'
+import { useRef, useEffect } from 'react'
+import type { HistoryContainerProps } from '@rific/toaster'
+
+const BottomSheetContainer = ({ children, onClose, visible }: HistoryContainerProps) => {
+  const ref = useRef<BottomSheet>(null)
+
+  useEffect(() => {
+    if (visible) ref.current?.snapToIndex(0)
+    else ref.current?.close()
+  }, [visible])
+
+  return (
+    <BottomSheet ref={ref} enablePanDownToClose index={-1} onClose={onClose}>
+      {children}
+    </BottomSheet>
+  )
+}
+
+<HistoryModal Container={BottomSheetContainer} />
+```
+
+`Container` receives `visible`, `onClose`, and `children` (the history list content) — it's responsible for showing/hiding itself however it likes.
 
 ## react-native-paper integration
 

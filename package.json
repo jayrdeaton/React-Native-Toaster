@@ -39,7 +39,9 @@
   "types": "dist/index.d.ts",
   "files": [
     "dist",
-    "src"
+    "src",
+    "!src/__tests__",
+    "!src/__mocks__"
   ],
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --clean",
@@ -56,7 +58,6 @@
     "preversion": "npm run lint && npm test && npm run build"
   },
   "devDependencies": {
-    "@gorhom/bottom-sheet": "^5.2.14",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/jest": "^30.0.0",
@@ -68,7 +69,6 @@
     "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-react-native": "^5.0.0",
     "eslint-plugin-simple-import-sort": "^13.0.0",
-    "expo-blur": "^56.0.3",
     "expo-haptics": "^56.0.3",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
@@ -88,31 +88,20 @@
     "typescript-eslint": "^8.59.3"
   },
   "peerDependencies": {
-    "@gorhom/bottom-sheet": ">=5.0.0",
-    "expo-blur": ">=13.0.0",
     "expo-haptics": ">=13.0.0",
-    "react": ">=17.0.0",
-    "react-native": ">=0.70.0",
+    "react": ">=18.0.0",
+    "react-native": ">=0.76.0",
     "react-native-gesture-handler": ">=2.0.0",
     "react-native-paper": ">=5.0.0",
-    "react-native-reanimated": ">=3.0.0",
-    "react-native-safe-area-context": ">=5.6.0",
+    "react-native-reanimated": ">=4.0.0",
+    "react-native-safe-area-context": ">=5.0.0",
     "react-native-worklets": ">=0.7.0"
   },
   "peerDependenciesMeta": {
-    "@gorhom/bottom-sheet": {
-      "optional": true
-    },
-    "expo-blur": {
-      "optional": true
-    },
     "expo-haptics": {
       "optional": true
     },
     "react-native-paper": {
-      "optional": true
-    },
-    "react-native-safe-area-context": {
       "optional": true
     }
   },

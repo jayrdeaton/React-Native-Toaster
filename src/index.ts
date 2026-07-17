@@ -1,4 +1,4 @@
-export { HistoryModal, type HistoryModalProps } from './HistoryModal'
+export { type HistoryContainerProps, HistoryModal, type HistoryModalProps } from './HistoryModal'
 export { defaultGenerateId, LEVEL_COLORS, Toast, type ToastLevel } from './Toast'
 export { ToastProvider } from './ToastContext'
 export { type PaperTheme, Toaster, type ToasterProps } from './Toaster'

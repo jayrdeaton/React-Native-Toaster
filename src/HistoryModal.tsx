@@ -1,25 +1,36 @@
-import { useEffect, useRef } from 'react'
-import { Dimensions, FlatList, Modal, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
+import type { ComponentType, ReactNode } from 'react'
+import { FlatList, Modal, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { blur } from './blur'
-import { bottomSheet } from './bottomSheet'
 import { paper } from './paper'
 import type { ToastLevel } from './Toast'
 import { LEVEL_COLORS } from './Toast'
 import { useFallbackColors } from './useFallbackColors'
 import { useToast } from './useToast'
 
+export type HistoryContainerProps = {
+  children: ReactNode
+  onClose: () => void
+  visible: boolean
+}
+
 export type HistoryModalProps = {
   backgroundColor?: string
+  Container?: ComponentType<HistoryContainerProps>
   levelColors?: Partial<Record<ToastLevel, string>>
   style?: ViewStyle
   textColor?: string
 }
 
-type HistoryContentProps = HistoryModalProps & { isSheet?: boolean }
+const DefaultContainer = ({ children, onClose, visible }: HistoryContainerProps) => (
+  <Modal animationType='slide' onRequestClose={onClose} visible={visible}>
+    <SafeAreaProvider>{children}</SafeAreaProvider>
+  </Modal>
+)
 
-const HistoryContent = ({ backgroundColor, isSheet, levelColors, style, textColor }: HistoryContentProps) => {
+type HistoryContentProps = Omit<HistoryModalProps, 'Container'>
+
+const HistoryContent = ({ backgroundColor, levelColors, style, textColor }: HistoryContentProps) => {
   const { clearHistory, closeHistory, history } = useToast()
   const insets = useSafeAreaInsets()
   const fallback = useFallbackColors()
@@ -51,9 +62,8 @@ const HistoryContent = ({ backgroundColor, isSheet, levelColors, style, textColo
   }
 
   return (
-    // eslint-disable-next-line react-native/no-inline-styles
-    <View style={[styles.container, { backgroundColor: isSheet ? undefined : bg, paddingTop: isSheet ? 0 : insets.top }, style]}>
-      <View style={[styles.header, isSheet ? undefined : styles.headerModal]}>
+    <View style={[styles.container, { backgroundColor: bg, paddingTop: insets.top }, style]}>
+      <View style={styles.header}>
         {paper ? (
           <paper.IconButton icon='chevron-down' onPress={closeHistory} />
         ) : (
@@ -73,67 +83,24 @@ const HistoryContent = ({ backgroundColor, isSheet, levelColors, style, textColo
         ) : null}
       </View>
       {divider}
-      <View style={[styles.body, { backgroundColor: bg }]}>{bottomSheet ? <bottomSheet.BottomSheetFlatList {...listProps} /> : <FlatList {...listProps} />}</View>
+      <View style={[styles.body, { backgroundColor: bg }]}>
+        <FlatList {...listProps} />
+      </View>
     </View>
   )
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const BlurBackground: React.FC<any> = ({ style }) => {
-  const theme = paper ? paper.useTheme() : null
-  const fallback = useFallbackColors()
-  const BlurViewComponent = blur?.BlurView
-  if (!BlurViewComponent) return null
-  const tint = (theme?.dark ?? fallback.isDark) ? 'dark' : 'light'
-  return (
-    <BlurViewComponent intensity={80} style={[StyleSheet.absoluteFill, style]} tint={tint}>
-      <View style={[StyleSheet.absoluteFill, styles.blurOverlay, { backgroundColor: theme?.colors.surface ?? fallback.surface }]} />
-    </BlurViewComponent>
-  )
-}
-
-export const HistoryModal = (props: HistoryModalProps) => {
+export const HistoryModal = ({ Container = DefaultContainer, ...props }: HistoryModalProps) => {
   const { closeHistory, historyVisible } = useToast()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sheetRef = useRef<any>(null)
-  const insets = useSafeAreaInsets()
-  const fallback = useFallbackColors()
-  const bg = props.backgroundColor ?? fallback.surface
-  const text = props.textColor ?? fallback.text
-  const screenHeight = Dimensions.get('window').height
-
-  useEffect(() => {
-    if (!bottomSheet) return
-    if (historyVisible) {
-      sheetRef.current?.snapToIndex(0)
-    } else {
-      sheetRef.current?.close()
-    }
-  }, [historyVisible])
-
-  if (bottomSheet) {
-    return (
-      <View pointerEvents='box-none' style={StyleSheet.absoluteFill}>
-        <bottomSheet.BottomSheet ref={sheetRef} backgroundComponent={blur ? BlurBackground : undefined} backgroundStyle={blur ? undefined : { backgroundColor: bg }} enablePanDownToClose handleIndicatorStyle={{ backgroundColor: text + '44' }} index={historyVisible ? 0 : -1} onClose={closeHistory} snapPoints={[screenHeight * 0.65, screenHeight]} topInset={insets.top}>
-          <HistoryContent {...props} isSheet />
-        </bottomSheet.BottomSheet>
-      </View>
-    )
-  }
 
   return (
-    <Modal animationType='slide' onRequestClose={closeHistory} visible={historyVisible}>
-      <SafeAreaProvider>
-        <HistoryContent {...props} />
-      </SafeAreaProvider>
-    </Modal>
+    <Container onClose={closeHistory} visible={historyVisible}>
+      <HistoryContent {...props} />
+    </Container>
   )
 }
 
 const styles = StyleSheet.create({
-  blurOverlay: {
-    opacity: 0.5
-  },
   body: {
     flex: 1
   },
@@ -164,10 +131,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    paddingHorizontal: 8,
     paddingVertical: 8
-  },
-  headerModal: {
-    paddingHorizontal: 8
   },
   indicator: {
     borderRadius: 3,
