@@ -142,18 +142,20 @@ const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, le
   )
 
   return (
-    <Animated.View entering={entering} exiting={exiting} layout={LinearTransition.duration(220)} onLayout={handleLayout} style={[styles.itemContainer, marginStyle]}>
-      <GestureDetector gesture={gesture}>
-        <Animated.View style={swipeStyle}>
-          {paper ? (
-            <paper.Surface elevation={surfaceElevation ?? 1} style={[styles.card, toastStyle, backgroundColor ? { backgroundColor } : undefined]}>
-              {cardContent}
-            </paper.Surface>
-          ) : (
-            <View style={[styles.card, styles.cardShadow, { backgroundColor: effectiveBg }, toastStyle]}>{cardContent}</View>
-          )}
-        </Animated.View>
-      </GestureDetector>
+    <Animated.View layout={LinearTransition.duration(220)} style={[styles.itemContainer, marginStyle]}>
+      <Animated.View entering={entering} exiting={exiting} onLayout={handleLayout}>
+        <GestureDetector gesture={gesture}>
+          <Animated.View style={swipeStyle}>
+            {paper ? (
+              <paper.Surface elevation={surfaceElevation ?? 1} style={[styles.card, toastStyle, backgroundColor ? { backgroundColor } : undefined]}>
+                {cardContent}
+              </paper.Surface>
+            ) : (
+              <View style={[styles.card, styles.cardShadow, { backgroundColor: effectiveBg }, toastStyle]}>{cardContent}</View>
+            )}
+          </Animated.View>
+        </GestureDetector>
+      </Animated.View>
     </Animated.View>
   )
 })
@@ -250,31 +252,33 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
 
   const stack = (
     <Animated.View pointerEvents='box-none' style={[styles.stack, stackStyle, wrapperStyle]}>
-      <Animated.View entering={position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)} exiting={position === 'bottom' ? FadeOutDown.duration(160) : FadeOutUp.duration(160)} layout={LinearTransition.duration(220)} style={[styles.stackControls, position === 'bottom' ? { bottom: totalStackHeight + 4 } : { top: totalStackHeight + 4 }]}>
-        <View style={styles.stackControlsLeft}>
-          {history.length > 0 ? (
-            paper ? (
-              <paper.Chip compact icon='history' onPress={handleHistoryPress} style={styles.chip}>
-                history
+      <Animated.View layout={LinearTransition.duration(220)} style={[styles.stackControls, position === 'bottom' ? { bottom: totalStackHeight + 4 } : { top: totalStackHeight + 4 }]}>
+        <Animated.View entering={position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)} exiting={position === 'bottom' ? FadeOutDown.duration(160) : FadeOutUp.duration(160)} style={styles.stackControlsRow}>
+          <View style={styles.stackControlsLeft}>
+            {history.length > 0 ? (
+              paper ? (
+                <paper.Chip compact icon='history' onPress={handleHistoryPress} style={styles.chip}>
+                  history
+                </paper.Chip>
+              ) : (
+                <Pressable onPress={handleHistoryPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
+                  <Text style={[styles.badgeText, { color: badgeTextColor }]}>history</Text>
+                </Pressable>
+              )
+            ) : null}
+          </View>
+          <View style={styles.stackControlsRight}>
+            {paper ? (
+              <paper.Chip compact icon='close-circle-outline' onPress={handleClearPress} style={styles.chip}>
+                clear
               </paper.Chip>
             ) : (
-              <Pressable onPress={handleHistoryPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
-                <Text style={[styles.badgeText, { color: badgeTextColor }]}>history</Text>
+              <Pressable onPress={handleClearPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
+                <Text style={[styles.badgeText, { color: badgeTextColor }]}>✕</Text>
               </Pressable>
-            )
-          ) : null}
-        </View>
-        <View style={styles.stackControlsRight}>
-          {paper ? (
-            <paper.Chip compact icon='close-circle-outline' onPress={handleClearPress} style={styles.chip}>
-              clear
-            </paper.Chip>
-          ) : (
-            <Pressable onPress={handleClearPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
-              <Text style={[styles.badgeText, { color: badgeTextColor }]}>✕</Text>
-            </Pressable>
-          )}
-        </View>
+            )}
+          </View>
+        </Animated.View>
       </Animated.View>
       {visibleToasts.map((toast, index) => (
         <ToastItem key={toast.id} backgroundColor={backgroundColor} duration={duration} Icon={effectiveIcon} isTop={index === visibleToasts.length - 1} levelColor={mergedColors[toast.level]} levelIcon={effectiveLevelIcons?.[toast.level]} offset={offsets[index]} onDismiss={dismiss} onMeasure={handleMeasure} position={position} surfaceElevation={surfaceElevation} textColor={textColor} theme={resolvedTheme} toast={toast} toastStyle={toastStyle} />
@@ -353,12 +357,14 @@ const styles = StyleSheet.create({
     right: 0
   },
   stackControls: {
-    alignItems: 'center',
-    flexDirection: 'row',
     left: 0,
     position: 'absolute',
     right: 0,
     zIndex: 5
+  },
+  stackControlsRow: {
+    alignItems: 'center',
+    flexDirection: 'row'
   },
   chip: {
     elevation: 2,
