@@ -1,5 +1,4 @@
 import { act, render } from '@testing-library/react'
-import React from 'react'
 
 import { lastPanCallbacks, panInstanceCount } from '../__mocks__/react-native-gesture-handler'
 import { ToastProvider } from '../ToastContext'
