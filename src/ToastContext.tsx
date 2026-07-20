@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useContext, useReducer } from 'react'
+import { createContext, type Dispatch, type ReactNode, useContext, useReducer } from 'react'
 
 import { paper } from './paper'
 import { defaultGenerateId, type Toast } from './Toast'
@@ -34,7 +34,7 @@ function reducer(state: ToastState, action: ToastAction): ToastState {
 }
 
 type ToastContextValue = {
-  dispatch: React.Dispatch<ToastAction>
+  dispatch: Dispatch<ToastAction>
   generateId: () => string
   maxHistory: number
   paperTheme: PaperTheme | null

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react'
 
 export const GestureHandlerRootView = ({ children }: { children?: React.ReactNode }) => children ?? null
