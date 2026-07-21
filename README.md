@@ -117,7 +117,7 @@ const {
 | `levelColors` | `Partial<Record<ToastLevel, string>>` | — | Override the color per level. |
 | `Icon` | `ComponentType<{ name, size?, color? }>` | — | Icon component from any vector icon library. |
 | `levelIcons` | `Partial<Record<ToastLevel, string>>` | — | Icon name per level, passed to `Icon`. |
-| `theme` | `PaperTheme` | — | Paper theme object (`{ colors: { surface, onSurface } }`). Derives `backgroundColor` and `textColor` when set. |
+| `theme` | `PaperTheme` | — | Paper theme object (`{ colors: { background, surface, onSurface } }`). Derives `backgroundColor` and `textColor` when set. |
 | `surfaceElevation` | `0 \| 1 \| 2 \| 3 \| 4 \| 5` | `1` | Paper `Surface` elevation. Only used when `react-native-paper` is installed. |
 | `historyModal` | `ReactNode` | `<HistoryModal />` | Override the default history modal with a custom component. |
 | `onHistoryPress` | `() => void` | — | Custom handler for the history button. Defaults to opening the built-in `HistoryModal`. |
