@@ -2,9 +2,9 @@ import type { ComponentType, ReactNode } from 'react'
 import { FlatList, Modal, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { paper } from './paper'
 import type { ToastLevel } from './Toast'
 import { LEVEL_COLORS } from './Toast'
+import { useToastContext } from './ToastContext'
 import { useFallbackColors } from './useFallbackColors'
 import { useToast } from './useToast'
 
@@ -32,6 +32,7 @@ type HistoryContentProps = Omit<HistoryModalProps, 'Container'>
 
 const HistoryContent = ({ backgroundColor, levelColors, style, textColor }: HistoryContentProps) => {
   const { clearHistory, closeHistory, history } = useToast()
+  const { paper } = useToastContext()
   const insets = useSafeAreaInsets()
   const fallback = useFallbackColors()
 

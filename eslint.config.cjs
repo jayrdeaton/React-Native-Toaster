@@ -17,7 +17,7 @@ module.exports = defineConfig([
     }
   },
   {
-    ignores: ['dist/**', 'node_modules/**', 'lib/**', 'coverage/**', '**/*.js', '**/*.mjs', '**/*.cjs', 'src/__mocks__/**', 'src/__tests__/**']
+    ignores: ['dist/**', 'node_modules/**', 'lib/**', 'coverage/**', '**/*.js', '**/*.mjs', '**/*.cjs', 'src/__mocks__/**', 'src/__tests__/**', '.claude/worktrees/**']
   },
   ...tsEslint.configs.recommended,
   prettierRecommended,
