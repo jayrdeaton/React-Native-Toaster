@@ -1,17 +1,15 @@
 import { type ComponentType, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dimensions, Image, Keyboard, type LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import Animated, { Extrapolation, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp, interpolate, LinearTransition, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
+import Animated, { Extrapolation, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp, interpolate, LinearTransition, useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { scheduleOnRN } from 'react-native-worklets'
 
-import { haptics } from './haptics'
 import { HistoryModal } from './HistoryModal'
-import { paper } from './paper'
 import { computeStackOffsets } from './stackLayout'
 import type { Toast, ToastLevel } from './Toast'
 import { LEVEL_COLORS } from './Toast'
-import { useToastContext } from './ToastContext'
+import { type PaperModule, useToastContext } from './ToastContext'
 import { useFallbackColors } from './useFallbackColors'
 import { useToast } from './useToast'
 
@@ -23,11 +21,6 @@ const DEFAULT_LEVEL_ICONS: Record<ToastLevel, string> = {
 }
 
 type IconComponentProps = { color?: string; name: string; size?: number }
-
-function PaperIconAdapter({ color, name, size }: IconComponentProps) {
-  if (!paper) return null
-  return <paper.Icon color={color} size={size ?? 20} source={name} />
-}
 
 export type PaperTheme = { colors: { background: string; onSurface: string; surface: string } }
 
@@ -59,6 +52,7 @@ type ToastItemProps = {
   offset: number
   onDismiss: (id: string) => void
   onMeasure: (id: string, height: number) => void
+  paper: PaperModule | null
   position: 'bottom' | 'top'
   surfaceElevation?: 0 | 1 | 2 | 3 | 4 | 5
   textColor?: string
@@ -67,7 +61,7 @@ type ToastItemProps = {
   toastStyle?: ViewStyle
 }
 
-const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, levelIcon, offset, onDismiss, onMeasure, position, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
+const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, levelIcon, offset, onDismiss, onMeasure, paper, position, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
   const translateX = useSharedValue(0)
   const screenWidth = Dimensions.get('window').width
   const swipeThreshold = screenWidth * 0.4
@@ -78,6 +72,23 @@ const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, le
 
   const handleDismiss = useCallback(() => onDismiss(toast.id), [onDismiss, toast.id])
   const handleLayout = useCallback((e: LayoutChangeEvent) => onMeasure(toast.id, e.nativeEvent.layout.height), [onMeasure, toast.id])
+
+  // scheduleOnRN should be called from a worklet declared in the RN-runtime-scoped function
+  // body, not from one manufactured deeper inside another callback - signalling completion
+  // through a shared value and reacting to it here keeps that shape. This alone was NOT what
+  // fixed the "[Worklets] Cannot copy value of type `NativeWorklets`" crash that used to
+  // happen on every GestureDetector mount, though - that was a package-export-routing bug
+  // (Metro was resolving the CJS build, whose bundler mangles `scheduleOnRN` into namespace
+  // member access the Worklets Babel plugin can't recognize as forwardable). See package.json
+  // ("react-native" condition -> dist/index.mjs) and https://github.com/software-mansion/react-native-reanimated/discussions/8811
+  const swipeDismissed = useSharedValue(false)
+
+  useAnimatedReaction(
+    () => swipeDismissed.value,
+    (dismissed, wasDismissed) => {
+      if (dismissed && !wasDismissed) scheduleOnRN(handleDismiss)
+    }
+  )
 
   useEffect(() => {
     const elapsed = Math.max(0, Date.now() - new Date(toast.createdAt).getTime())
@@ -103,13 +114,13 @@ const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, le
             const target = e.translationX > 0 ? screenWidth * 1.5 : -screenWidth * 1.5
             translateX.value = withTiming(target, { duration: 180 }, (finished) => {
               'worklet'
-              if (finished) scheduleOnRN(handleDismiss)
+              if (finished) swipeDismissed.value = true
             })
           } else {
             translateX.value = withSpring(0)
           }
         }),
-    [handleDismiss, screenWidth, swipeThreshold, translateX]
+    [screenWidth, swipeDismissed, swipeThreshold, translateX]
   )
 
   const opacity = useDerivedValue(() => interpolate(Math.abs(translateX.value), [0, swipeThreshold], [1, 0.4], Extrapolation.CLAMP))
@@ -123,7 +134,7 @@ const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, le
   const exiting = position === 'bottom' ? (isTop ? FadeOutUp.duration(160) : FadeOutDown.duration(160)) : isTop ? FadeOutDown.duration(160) : FadeOutUp.duration(160)
   const marginStyle = position === 'bottom' ? { bottom: 0, marginBottom: offset } : { marginTop: offset, top: 0 }
 
-  const icon = toast.image ? <Image source={{ uri: toast.image }} style={styles.image} /> : Icon && levelIcon ? <Icon color={levelColor} name={levelIcon} size={20} /> : <View style={[styles.indicator, { backgroundColor: levelColor }]} />
+  const icon = toast.image ? <Image source={{ uri: toast.image }} style={styles.image} /> : Icon && levelIcon ? <Icon color={levelColor} name={levelIcon} size={20} /> : paper && levelIcon ? <paper.Icon color={levelColor} size={20} source={levelIcon} /> : <View style={[styles.indicator, { backgroundColor: levelColor }]} />
 
   const cardContent = (
     <>
@@ -163,7 +174,7 @@ ToastItem.displayName = 'ToastItem'
 
 export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, keyboardAware = true, levelColors, levelIcons, limit = 3, onHistoryPress, position = 'bottom', surfaceElevation, textColor, theme, toastStyle, wrapperStyle }: ToasterProps) => {
   const { clear, dismiss, history, historyVisible, openHistory, toasts } = useToast()
-  const { paperTheme } = useToastContext()
+  const { haptics, paper, paperTheme } = useToastContext()
   const resolvedTheme = theme ?? paperTheme ?? undefined
   const insets = useSafeAreaInsets()
   const knownIdsRef = useRef(new Set<string>())
@@ -176,7 +187,6 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
   const modalText = textColor ?? resolvedTheme?.colors.onSurface ?? fallback.text
 
   const mergedColors = useMemo(() => ({ ...LEVEL_COLORS, ...levelColors }), [levelColors])
-  const effectiveIcon = Icon ?? (paper ? PaperIconAdapter : undefined)
   const effectiveLevelIcons = levelIcons ?? (paper ? DEFAULT_LEVEL_ICONS : undefined)
 
   const handleHistoryPress = useCallback(() => {
@@ -281,7 +291,7 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
         </Animated.View>
       </Animated.View>
       {visibleToasts.map((toast, index) => (
-        <ToastItem key={toast.id} backgroundColor={backgroundColor} duration={duration} Icon={effectiveIcon} isTop={index === visibleToasts.length - 1} levelColor={mergedColors[toast.level]} levelIcon={effectiveLevelIcons?.[toast.level]} offset={offsets[index]} onDismiss={dismiss} onMeasure={handleMeasure} position={position} surfaceElevation={surfaceElevation} textColor={textColor} theme={resolvedTheme} toast={toast} toastStyle={toastStyle} />
+        <ToastItem key={toast.id} backgroundColor={backgroundColor} duration={duration} Icon={Icon} isTop={index === visibleToasts.length - 1} levelColor={mergedColors[toast.level]} levelIcon={effectiveLevelIcons?.[toast.level]} offset={offsets[index]} onDismiss={dismiss} onMeasure={handleMeasure} paper={paper} position={position} surfaceElevation={surfaceElevation} textColor={textColor} theme={resolvedTheme} toast={toast} toastStyle={toastStyle} />
       ))}
     </Animated.View>
   )

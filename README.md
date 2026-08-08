@@ -5,16 +5,16 @@ Stacking, animated toast notifications for React Native. Toasts stack on top of 
 ## Features
 
 - Stacking toasts from the top or bottom edge with animated entry, exit, and reflow
-- Stack spacing automatically adapts to each toast's real measured height — long captions or wrapped titles never overlap the toast next to them
+- Stack spacing automatically adapts to each toast's real measured height, long captions or wrapped titles never overlap the toast next to them
 - Swipe-to-dismiss with spring snap-back below threshold
 - Auto-dismiss with per-toast elapsed time tracking (resumable across re-renders)
-- Keyboard-aware positioning — shifts above the software keyboard automatically
+- Keyboard-aware positioning, shifts above the software keyboard automatically
 - Toast history (up to 100 entries, survives individual dismissals)
 - Four built-in levels: `error`, `warning`, `info`, `success`
 - Optional icon support via any icon library
-- Optional image support — pass an image URI to render it in place of the level icon
-- No Portal dependency — place `<Toaster />` wherever you want it
-- Optional `react-native-paper` integration — upgrades cards, buttons, and dividers to Paper components automatically
+- Optional image support, pass an image URI to render it in place of the level icon
+- No Portal dependency, place `<Toaster />` wherever you want it
+- Optional `react-native-paper` integration, inject it into `ToastProvider` to upgrade cards, buttons, and dividers to Paper components
 
 ## Installation
 
@@ -28,7 +28,7 @@ npm install @rific/toaster
 npm install react-native-reanimated react-native-gesture-handler react-native-worklets react-native-safe-area-context
 ```
 
-Requires `react-native-reanimated` **v4 or newer** (the toast stack uses `react-native-worklets`, which ships alongside Reanimated 4). Follow the setup guides for [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started) and [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation). Your app root also needs `GestureHandlerRootView` from gesture-handler (typically already present if you use React Navigation), and a `SafeAreaProvider` from `react-native-safe-area-context` somewhere above `<Toaster />` (also typically already present — React Navigation and Expo Router both set this up for you).
+Requires `react-native-reanimated` **v4 or newer** (the toast stack uses `react-native-worklets`, which ships alongside Reanimated 4). Follow the setup guides for [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started) and [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation). Your app root also needs `GestureHandlerRootView` from gesture-handler (typically already present if you use React Navigation), and a `SafeAreaProvider` from `react-native-safe-area-context` somewhere above `<Toaster />` (also typically already present, React Navigation and Expo Router both set this up for you).
 
 ### Optional peer dependencies
 
@@ -37,9 +37,11 @@ npm install expo-haptics                      # haptic feedback on history/clear
 npm install react-native-paper               # Paper component upgrades (see below)
 ```
 
+Neither is auto-detected, pass them to `ToastProvider` (see below) and Toaster/HistoryModal pick them up automatically. Omit either and you get a working fallback: plain `View`/`Pressable` UI without Paper, no haptic tick without expo-haptics.
+
 ## Setup
 
-Wrap your app with `ToastProvider` and place `<Toaster />` wherever toasts should appear. Since there's no Portal, the component renders in-place — putting it near the root of your tree is the most common pattern.
+Wrap your app with `ToastProvider` and place `<Toaster />` wherever toasts should appear. Since there's no Portal, the component renders in-place: putting it near the root of your tree is the most common pattern.
 
 ```tsx
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -62,6 +64,25 @@ export default function App() {
 ```tsx
 <ToastProvider generateId={() => myIdLibrary.generate()}>
 ```
+
+Inject `react-native-paper` and/or `expo-haptics` to upgrade the built-in UI, both are optional, and Toaster/HistoryModal render a working plain-RN fallback (no Paper components, no haptic tick) when omitted:
+
+```tsx
+import * as Haptics from 'expo-haptics'
+import * as RNPaper from 'react-native-paper'
+
+<ToastProvider haptics={Haptics} paper={RNPaper}>
+```
+
+### ToastProvider props
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `children` | `ReactNode` | - | |
+| `generateId` | `() => string` | `crypto.randomUUID()` fallback | Controls how toast IDs are generated. |
+| `haptics` | `HapticsModule` | - | Injects `expo-haptics` for the light haptic tick on the history/clear stack controls. Pass `import * as Haptics from 'expo-haptics'`, omit to skip haptics entirely. |
+| `maxHistory` | `number` | `100` | Max entries kept in `history`. `0` disables history tracking. |
+| `paper` | `PaperModule` | - | Injects `react-native-paper` so Toaster/HistoryModal render Paper components instead of their plain RN fallback. Pass `import * as RNPaper from 'react-native-paper'`, omit to keep the zero-dependency fallback UI. |
 
 ## Usage
 
@@ -93,14 +114,14 @@ const {
   info,           // (title, caption?, image?) => void
   success,        // (title, caption?, image?) => void
   dismiss,        // (id) => void
-  clear,          // () => void — removes all visible toasts
-  clearHistory,   // () => void — clears the history log
-  openHistory,    // () => void — opens the history modal
-  closeHistory,   // () => void — closes the history modal
-  toasts,         // Toast[] — currently visible
-  history,        // Toast[] — up to 100, persists across dismissals
-  historyVisible, // boolean — whether the history modal is open
-  toast,          // Toast | undefined — most recent
+  clear,          // () => void, removes all visible toasts
+  clearHistory,   // () => void, clears the history log
+  openHistory,    // () => void, opens the history modal
+  closeHistory,   // () => void, closes the history modal
+  toasts,         // Toast[], currently visible
+  history,        // Toast[], up to 100, persists across dismissals
+  historyVisible, // boolean, whether the history modal is open
+  toast,          // Toast | undefined, most recent
 } = useToast()
 ```
 
@@ -114,19 +135,19 @@ const {
 | `keyboardAware` | `boolean` | `true` | Shifts above the software keyboard when open. |
 | `backgroundColor` | `string` | `'#2c2c2e'` | Card background color. |
 | `textColor` | `string` | `'#fff'` | Card text color. |
-| `levelColors` | `Partial<Record<ToastLevel, string>>` | — | Override the color per level. |
-| `Icon` | `ComponentType<{ name, size?, color? }>` | — | Icon component from any vector icon library. |
-| `levelIcons` | `Partial<Record<ToastLevel, string>>` | — | Icon name per level, passed to `Icon`. |
-| `theme` | `PaperTheme` | — | Paper theme object (`{ colors: { background, surface, onSurface } }`). Derives `backgroundColor` and `textColor` when set. |
-| `surfaceElevation` | `0 \| 1 \| 2 \| 3 \| 4 \| 5` | `1` | Paper `Surface` elevation. Only used when `react-native-paper` is installed. |
+| `levelColors` | `Partial<Record<ToastLevel, string>>` | - | Override the color per level. |
+| `Icon` | `ComponentType<{ name, size?, color? }>` | - | Icon component from any vector icon library. |
+| `levelIcons` | `Partial<Record<ToastLevel, string>>` | - | Icon name per level, passed to `Icon`. |
+| `theme` | `PaperTheme` | - | Paper theme object (`{ colors: { background, surface, onSurface } }`). Derives `backgroundColor` and `textColor` when set. |
+| `surfaceElevation` | `0 \| 1 \| 2 \| 3 \| 4 \| 5` | `1` | Paper `Surface` elevation. Only used when `paper` is injected into `ToastProvider`. |
 | `historyModal` | `ReactNode` | `<HistoryModal />` | Override the default history modal with a custom component. |
-| `onHistoryPress` | `() => void` | — | Custom handler for the history button. Defaults to opening the built-in `HistoryModal`. |
-| `toastStyle` | `ViewStyle` | — | Style applied to each toast card. |
-| `wrapperStyle` | `ViewStyle` | — | Style applied to the outer stack container. |
+| `onHistoryPress` | `() => void` | - | Custom handler for the history button. Defaults to opening the built-in `HistoryModal`. |
+| `toastStyle` | `ViewStyle` | - | Style applied to each toast card. |
+| `wrapperStyle` | `ViewStyle` | - | Style applied to the outer stack container. |
 
 ### With icons
 
-Pass any icon component that accepts `name`, `size`, and `color` props — `@expo/vector-icons`, `react-native-vector-icons`, etc.
+Pass any icon component that accepts `name`, `size`, and `color` props (`@expo/vector-icons`, `react-native-vector-icons`, etc.).
 
 ```tsx
 import { MaterialCommunityIcons } from '@expo/vector-icons'
@@ -144,7 +165,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 
 ### Captions and images
 
-When both a title and caption are provided, the card shows the title as the primary line and the caption as a secondary line beneath it — no truncation to a single line. Each toast's rendered height is measured automatically, so a long caption never overlaps the toast stacked next to it.
+When both a title and caption are provided, the card shows the title as the primary line and the caption as a secondary line beneath it: no truncation to a single line. Each toast's rendered height is measured automatically, so a long caption never overlaps the toast stacked next to it.
 
 ```tsx
 success('Photo uploaded', 'Compressed and saved to your library', 'https://example.com/photo.jpg')
@@ -167,7 +188,7 @@ Passing an `image` URI renders it in a small square in place of the level icon.
 
 ### Top position
 
-Toasts stack downward from the top edge. Entry and exit animations flip automatically — new toasts drop in from above, and the stack grows downward.
+Toasts stack downward from the top edge. Entry and exit animations flip automatically, new toasts drop in from above, and the stack grows downward.
 
 ```tsx
 <Toaster position='top' />
@@ -177,7 +198,7 @@ The `keyboardAware` prop has no effect when `position='top'` since the keyboard 
 
 ### Portal behavior
 
-When `react-native-paper` is installed, the toast stack is automatically wrapped in a Paper `<Portal>` so it renders above modals and other overlays. Without Paper, `<Toaster />` is an absolutely-positioned `View` that renders in-place. To lift it manually:
+When `paper` is injected into `ToastProvider`, the toast stack is automatically wrapped in a Paper `<Portal>` so it renders above modals and other overlays. Without it, `<Toaster />` is an absolutely-positioned `View` that renders in-place. To lift it manually:
 
 ```tsx
 import { Portal } from 'react-native-paper'
@@ -207,44 +228,34 @@ import { HistoryModal } from '@rific/toaster'
 |---|---|---|---|
 | `backgroundColor` | `string` | `'#2c2c2e'` | Modal background color. |
 | `textColor` | `string` | `'#fff'` | Text and divider color. |
-| `levelColors` | `Partial<Record<ToastLevel, string>>` | — | Override the level indicator color per level. |
-| `style` | `ViewStyle` | — | Style applied to the modal container. |
-| `Container` | `ComponentType<HistoryContainerProps>` | vanilla `Modal` | Swap out the presentation wrapper — see below. |
+| `levelColors` | `Partial<Record<ToastLevel, string>>` | - | Override the level indicator color per level. |
+| `style` | `ViewStyle` | - | Style applied to the modal container. |
+| `Container` | `ComponentType<HistoryContainerProps>` | vanilla `Modal` | Swap out the presentation wrapper (see below). |
 
-When `react-native-paper` is installed, the Done button, Clear history button, and row dividers are upgraded to Paper components automatically.
+When `paper` is injected into `ToastProvider`, the Done button, Clear history button, and row dividers are upgraded to Paper components automatically.
 
 ### Custom Container (e.g. a bottom sheet)
 
-`HistoryModal` has no dependency on any sheet library — it renders a vanilla `Modal` by default. If you want a bottom-sheet presentation instead, pass your own `Container` component built on whatever library you like (e.g. `@gorhom/bottom-sheet`):
+`HistoryModal` has no dependency on any sheet library: it renders a vanilla `Modal` by default. If you want a bottom-sheet presentation instead, pass your own `Container` component built on whatever library you like, e.g. the sibling package [`@rific/drawer`](https://www.npmjs.com/package/@rific/drawer), whose standalone `Drawer` component takes `open`/`onClose`/`children`, a near-exact match for `Container`'s own contract:
 
 ```tsx
-import BottomSheet from '@gorhom/bottom-sheet'
-import { useRef, useEffect } from 'react'
+import { Drawer } from '@rific/drawer'
 import type { HistoryContainerProps } from '@rific/toaster'
 
-const BottomSheetContainer = ({ children, onClose, visible }: HistoryContainerProps) => {
-  const ref = useRef<BottomSheet>(null)
+const DrawerContainer = ({ children, onClose, visible }: HistoryContainerProps) => (
+  <Drawer open={visible} onClose={onClose} side='bottom' height={600}>
+    {children}
+  </Drawer>
+)
 
-  useEffect(() => {
-    if (visible) ref.current?.snapToIndex(0)
-    else ref.current?.close()
-  }, [visible])
-
-  return (
-    <BottomSheet ref={ref} enablePanDownToClose index={-1} onClose={onClose}>
-      {children}
-    </BottomSheet>
-  )
-}
-
-<HistoryModal Container={BottomSheetContainer} />
+<HistoryModal Container={DrawerContainer} />
 ```
 
-`Container` receives `visible`, `onClose`, and `children` (the history list content) — it's responsible for showing/hiding itself however it likes.
+`Container` receives `visible`, `onClose`, and `children` (the history list content); it's responsible for showing/hiding itself however it likes.
 
 ## react-native-paper integration
 
-Install `react-native-paper` as an optional peer dependency to unlock Paper-native UI throughout the package:
+Inject `react-native-paper` into `ToastProvider` (`<ToastProvider paper={RNPaper}>`) to unlock Paper-native UI throughout the package. It's never auto-detected, so nothing changes until you pass it:
 
 | Without Paper | With Paper |
 |---|---|
@@ -273,7 +284,7 @@ class Toast {
   level: ToastLevel  // 'error' | 'warning' | 'info' | 'success'
   title: string | null
   caption: string | null
-  image: string | null  // URI — renders an image instead of the level icon
+  image: string | null  // URI, renders an image instead of the level icon
   createdAt: string     // ISO timestamp
 }
 ```

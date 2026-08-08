@@ -1,8 +1,39 @@
-import { createContext, type Dispatch, type ReactNode, useContext, useReducer } from 'react'
+import { type ComponentType, createContext, type Dispatch, type ReactNode, useContext, useReducer } from 'react'
+import type { StyleProp, ViewStyle } from 'react-native'
 
-import { paper } from './paper'
 import { defaultGenerateId, type Toast } from './Toast'
 import type { PaperTheme } from './Toaster'
+
+type ChipProps = { children: ReactNode; compact?: boolean; icon?: string; onPress?: () => void; style?: StyleProp<ViewStyle> }
+
+type IconProps = { color?: string; size: number; source: string }
+
+type IconButtonProps = { icon: string; onPress?: () => void }
+
+type PortalProps = { children: ReactNode }
+
+type SurfaceProps = { children: ReactNode; elevation?: 0 | 1 | 2 | 3 | 4 | 5; style?: StyleProp<ViewStyle> }
+
+export type PaperModule = {
+  Chip: ComponentType<ChipProps>
+  Divider: ComponentType<Record<string, never>>
+  Icon: ComponentType<IconProps>
+  IconButton: ComponentType<IconButtonProps>
+  Portal: ComponentType<PortalProps>
+  Surface: ComponentType<SurfaceProps>
+  useTheme: () => PaperTheme
+}
+
+// expo-haptics's real ImpactFeedbackStyle is a TS enum, not a plain string union - typing
+// this any-shaped keeps `haptics={ExpoHaptics}` structurally assignable without importing
+// the peer's real types (this only ever round-trips a value the injected module itself
+// provided, via `haptics.impactAsync(haptics.ImpactFeedbackStyle.Light)`).
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export type HapticsModule = {
+  ImpactFeedbackStyle: { Light: any }
+  impactAsync: (style?: any) => Promise<void>
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 type ToastState = {
   history: Toast[]
@@ -36,17 +67,29 @@ function reducer(state: ToastState, action: ToastAction): ToastState {
 type ToastContextValue = {
   dispatch: Dispatch<ToastAction>
   generateId: () => string
+  haptics: HapticsModule | null
   maxHistory: number
+  paper: PaperModule | null
   paperTheme: PaperTheme | null
   state: ToastState
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null)
 
-export const ToastProvider = ({ children, generateId = defaultGenerateId, maxHistory = 100 }: { children: ReactNode; generateId?: () => string; maxHistory?: number }) => {
+export type ToastProviderProps = {
+  children: ReactNode
+  generateId?: () => string
+  /** Injects expo-haptics for the light haptic tick on the history/clear stack controls. Pass `import * as Haptics from 'expo-haptics'`; omit to skip haptics entirely. */
+  haptics?: HapticsModule
+  maxHistory?: number
+  /** Injects react-native-paper so Toaster/HistoryModal render Paper components instead of their plain RN fallback. Pass `import * as RNPaper from 'react-native-paper'`; omit to keep the zero-dependency fallback UI. */
+  paper?: PaperModule
+}
+
+export const ToastProvider = ({ children, generateId = defaultGenerateId, haptics, maxHistory = 100, paper }: ToastProviderProps) => {
   const [state, dispatch] = useReducer(reducer, { history: [], historyVisible: false, toasts: [] })
   const paperTheme = paper ? paper.useTheme() : null
-  return <ToastContext.Provider value={{ dispatch, generateId, maxHistory, paperTheme, state }}>{children}</ToastContext.Provider>
+  return <ToastContext.Provider value={{ dispatch, generateId, haptics: haptics ?? null, maxHistory, paper: paper ?? null, paperTheme, state }}>{children}</ToastContext.Provider>
 }
 
 export const useToastContext = () => {
