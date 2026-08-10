@@ -1,7 +1,7 @@
 import { type ComponentType, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Dimensions, Image, Keyboard, type LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
+import { Dimensions, Image, type LayoutChangeEvent, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import Animated, { Extrapolation, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp, interpolate, LinearTransition, useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
+import Animated, { Extrapolation, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp, interpolate, LinearTransition, useAnimatedKeyboard, useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { scheduleOnRN } from 'react-native-worklets'
 
@@ -26,10 +26,13 @@ export type PaperTheme = { colors: { background: string; onSurface: string; surf
 
 export type ToasterProps = {
   backgroundColor?: string
+  clearButton?: ReactNode
   duration?: number
+  historyButton?: ReactNode
   historyModal?: ReactNode
   Icon?: ComponentType<IconComponentProps>
   keyboardAware?: boolean
+  keyboardOffset?: number
   levelColors?: Partial<Record<ToastLevel, string>>
   levelIcons?: Partial<Record<ToastLevel, string>>
   limit?: number
@@ -172,13 +175,20 @@ const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, le
 })
 ToastItem.displayName = 'ToastItem'
 
-export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, keyboardAware = true, levelColors, levelIcons, limit = 3, onHistoryPress, position = 'bottom', surfaceElevation, textColor, theme, toastStyle, wrapperStyle }: ToasterProps) => {
+export const Toaster = ({ backgroundColor, clearButton, duration = 7000, historyButton, historyModal, Icon, keyboardAware = true, keyboardOffset = 0, levelColors, levelIcons, limit = 3, onHistoryPress, position = 'bottom', surfaceElevation, textColor, theme, toastStyle, wrapperStyle }: ToasterProps) => {
   const { clear, dismiss, history, historyVisible, openHistory, toasts } = useToast()
   const { haptics, paper, paperTheme } = useToastContext()
   const resolvedTheme = theme ?? paperTheme ?? undefined
   const insets = useSafeAreaInsets()
   const knownIdsRef = useRef(new Set<string>())
-  const keyboardHeight = useSharedValue(0)
+  // Frame-accurate and UI-thread only: reanimated's own native listener drives `keyboard.height`
+  // continuously through the OS keyboard's actual show/hide animation. The previous approach (a
+  // plain useSharedValue plus RN core's Keyboard.addListener('keyboardWillShow'/'keyboardDidShow'))
+  // depended on that JS-thread event firing at all -- it reliably did not when a field already had
+  // autoFocus by the time this listener's effect subscribed, leaving keyboardHeight stuck at 0 and
+  // the stack rendering at just `insets.bottom` from the screen edge: behind an already-open
+  // keyboard instead of above it, the exact bug keyboardAware exists to prevent.
+  const keyboard = useAnimatedKeyboard()
   const [heights, setHeights] = useState<Record<string, number>>({})
   const fallback = useFallbackColors()
   const badgeBg = resolvedTheme?.colors.surface ?? fallback.badgeBg
@@ -207,24 +217,8 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
     setHeights((prev) => (prev[id] === height ? prev : { ...prev, [id]: height }))
   }, [])
 
-  useEffect(() => {
-    if (!keyboardAware || position !== 'bottom') return
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
-    const showSub = Keyboard.addListener(showEvent, (e) => {
-      keyboardHeight.value = e.endCoordinates.height
-    })
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      keyboardHeight.value = 0
-    })
-    return () => {
-      hideSub.remove()
-      showSub.remove()
-    }
-  }, [keyboardAware, keyboardHeight, position])
-
   const stackStyle = useAnimatedStyle(() => ({
-    bottom: position === 'bottom' ? Math.max(insets.bottom, keyboardHeight.value) : undefined,
+    bottom: position === 'bottom' ? Math.max(insets.bottom, keyboardAware ? keyboard.height.value : 0) + keyboardOffset : undefined,
     top: position === 'top' ? insets.top : undefined
   }))
 
@@ -258,36 +252,40 @@ export const Toaster = ({ backgroundColor, duration = 7000, historyModal, Icon, 
 
   if (!visibleToasts.length && !historyVisible) return null
 
-  const resolvedHistoryModal = historyModal ?? <HistoryModal backgroundColor={modalBg} levelColors={mergedColors} textColor={modalText} />
+  // A three-state slot: omit the prop for the built-in control, pass `null` to hide it, or
+  // pass a node to replace it outright. `??` can't express this - it treats `null` and
+  // `undefined` the same, so an explicit `undefined` check is required here and below.
+  const defaultHistoryButton =
+    history.length > 0 ? (
+      paper ? (
+        <paper.Chip compact icon='history' onPress={handleHistoryPress} style={styles.chip}>
+          history
+        </paper.Chip>
+      ) : (
+        <Pressable onPress={handleHistoryPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
+          <Text style={[styles.badgeText, { color: badgeTextColor }]}>history</Text>
+        </Pressable>
+      )
+    ) : null
+  const defaultClearButton = paper ? (
+    <paper.Chip compact icon='close-circle-outline' onPress={handleClearPress} style={styles.chip}>
+      clear
+    </paper.Chip>
+  ) : (
+    <Pressable onPress={handleClearPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
+      <Text style={[styles.badgeText, { color: badgeTextColor }]}>✕</Text>
+    </Pressable>
+  )
+  const resolvedHistoryButton = historyButton === undefined ? defaultHistoryButton : historyButton
+  const resolvedClearButton = clearButton === undefined ? defaultClearButton : clearButton
+  const resolvedHistoryModal = historyModal === undefined ? <HistoryModal backgroundColor={modalBg} levelColors={mergedColors} textColor={modalText} /> : historyModal
 
   const stack = (
     <Animated.View pointerEvents='box-none' style={[styles.stack, stackStyle, wrapperStyle]}>
       <Animated.View layout={LinearTransition.duration(220)} style={[styles.stackControls, position === 'bottom' ? { bottom: totalStackHeight + 4 } : { top: totalStackHeight + 4 }]}>
         <Animated.View entering={position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)} exiting={position === 'bottom' ? FadeOutDown.duration(160) : FadeOutUp.duration(160)} style={styles.stackControlsRow}>
-          <View style={styles.stackControlsLeft}>
-            {history.length > 0 ? (
-              paper ? (
-                <paper.Chip compact icon='history' onPress={handleHistoryPress} style={styles.chip}>
-                  history
-                </paper.Chip>
-              ) : (
-                <Pressable onPress={handleHistoryPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
-                  <Text style={[styles.badgeText, { color: badgeTextColor }]}>history</Text>
-                </Pressable>
-              )
-            ) : null}
-          </View>
-          <View style={styles.stackControlsRight}>
-            {paper ? (
-              <paper.Chip compact icon='close-circle-outline' onPress={handleClearPress} style={styles.chip}>
-                clear
-              </paper.Chip>
-            ) : (
-              <Pressable onPress={handleClearPress} style={[styles.badgePill, styles.badgePillShadow, { backgroundColor: badgeBg }]}>
-                <Text style={[styles.badgeText, { color: badgeTextColor }]}>✕</Text>
-              </Pressable>
-            )}
-          </View>
+          <View style={styles.stackControlsLeft}>{resolvedHistoryButton}</View>
+          <View style={styles.stackControlsRight}>{resolvedClearButton}</View>
         </Animated.View>
       </Animated.View>
       {visibleToasts.map((toast, index) => (

@@ -35,6 +35,9 @@ export const useSharedValue = (init: any) => {
   }
   return ref.current
 }
+// Closed keyboard by default -- tests that care about a specific height mock this module's own
+// useAnimatedKeyboard return value directly, same as they already do for other reanimated hooks.
+export const useAnimatedKeyboard = () => ({ height: { value: 0 } })
 export const useAnimatedStyle = (fn: () => any) => fn()
 export const useDerivedValue = (fn: () => any) => ({ value: fn() })
 export const useAnimatedReaction = (prepare: () => any, react: (curr: any, prev: any) => void) => {

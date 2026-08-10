@@ -133,6 +133,7 @@ const {
 | `duration` | `number` | `7000` | Ms before each toast auto-dismisses. |
 | `position` | `'bottom' \| 'top'` | `'bottom'` | Which edge to stack from. |
 | `keyboardAware` | `boolean` | `true` | Shifts above the software keyboard when open. |
+| `keyboardOffset` | `number` | `0` | Extra bottom spacing added on top of the keyboard-aware inset (bottom position only). |
 | `backgroundColor` | `string` | `'#2c2c2e'` | Card background color. |
 | `textColor` | `string` | `'#fff'` | Card text color. |
 | `levelColors` | `Partial<Record<ToastLevel, string>>` | - | Override the color per level. |
@@ -140,10 +141,14 @@ const {
 | `levelIcons` | `Partial<Record<ToastLevel, string>>` | - | Icon name per level, passed to `Icon`. |
 | `theme` | `PaperTheme` | - | Paper theme object (`{ colors: { background, surface, onSurface } }`). Derives `backgroundColor` and `textColor` when set. |
 | `surfaceElevation` | `0 \| 1 \| 2 \| 3 \| 4 \| 5` | `1` | Paper `Surface` elevation. Only used when `paper` is injected into `ToastProvider`. |
-| `historyModal` | `ReactNode` | `<HistoryModal />` | Override the default history modal with a custom component. |
-| `onHistoryPress` | `() => void` | - | Custom handler for the history button. Defaults to opening the built-in `HistoryModal`. |
+| `historyModal` | `ReactNode` | `<HistoryModal />` | Override the default history modal with a custom component. Pass `null` to render nothing. |
+| `onHistoryPress` | `() => void` | - | Custom handler for the built-in history button. Defaults to opening the built-in `HistoryModal`. Ignored if `historyButton` is set, since you own the press handling then. |
+| `historyButton` | `ReactNode` | built-in chip/pill, hidden until `history` has entries | Replace the "history" stack control with your own node. Pass `null` to hide it. |
+| `clearButton` | `ReactNode` | built-in chip/pill | Replace the "clear" stack control with your own node. Pass `null` to hide it. |
 | `toastStyle` | `ViewStyle` | - | Style applied to each toast card. |
 | `wrapperStyle` | `ViewStyle` | - | Style applied to the outer stack container. |
+
+`historyButton`/`clearButton`/`historyModal` are three-state slots: omit the prop for the built-in control, pass `null` to hide it, or pass your own node to replace it. A custom node is responsible for its own press handling and haptics - pull `clear`/`openHistory` off `useToast()`.
 
 ### With icons
 

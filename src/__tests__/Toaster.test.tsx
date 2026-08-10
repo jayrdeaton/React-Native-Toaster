@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
 
 import { lastPanCallbacks, panInstanceCount } from '../__mocks__/react-native-gesture-handler'
 import { type HapticsModule, type PaperModule, type ToastProviderProps, ToastProvider } from '../ToastContext'
@@ -8,11 +8,11 @@ import { useToast } from '../useToast'
 
 type ToastApi = ReturnType<typeof useToast>
 
-const renderToaster = (limit = 3, providerProps: Partial<Omit<ToastProviderProps, 'children'>> = {}) => {
+const renderToaster = (limit = 3, providerProps: Partial<Omit<ToastProviderProps, 'children'>> = {}, toasterProps: Partial<ComponentProps<typeof Toaster>> = {}) => {
   let api: ToastApi | null = null
   const Harness = () => {
     api = useToast()
-    return <Toaster limit={limit} />
+    return <Toaster limit={limit} {...toasterProps} />
   }
   const { container } = render(
     <ToastProvider {...providerProps}>
@@ -154,6 +154,43 @@ describe('optional peer injection (paper/haptics)', () => {
       fireEvent.click(clearButton)
     })
     expect(impactAsync).toHaveBeenCalledWith('light')
+  })
+
+  it('hides the history and clear stack controls when historyButton/clearButton are null', () => {
+    const { getApi } = renderToaster(3, { paper: fakePaper }, { clearButton: null, historyButton: null })
+    act(() => getApi().success('First'))
+
+    expect(screen.queryByText('history')).toBeNull()
+    expect(screen.queryByText('clear')).toBeNull()
+  })
+
+  it('replaces the history and clear stack controls with custom nodes', () => {
+    const { container, getApi } = renderToaster(3, { paper: fakePaper }, { clearButton: 'nuke-it', historyButton: 'past-toasts' })
+    act(() => getApi().success('First'))
+
+    expect(container.textContent).toContain('past-toasts')
+    expect(container.textContent).toContain('nuke-it')
+    expect(screen.queryByText('history')).toBeNull()
+    expect(screen.queryByText('clear')).toBeNull()
+  })
+
+  it('shows history entries in the default history modal when opened', () => {
+    const { container, getApi } = renderToaster(3, { paper: fakePaper })
+    act(() => getApi().success('First'))
+    act(() => getApi().openHistory())
+
+    expect(container.textContent).toContain('First')
+  })
+
+  it('renders nothing for the history modal slot when historyModal is null', () => {
+    // HistoryModal's item text renders through the plain react-native Text mock (no wrapping
+    // DOM element - see the "plain fallback UI" test above), so check raw text content rather
+    // than queryByText, which can't match a bare text node either way.
+    const { container, getApi } = renderToaster(3, { paper: fakePaper }, { historyModal: null })
+    act(() => getApi().success('First'))
+    act(() => getApi().openHistory())
+
+    expect(container.textContent).not.toContain('First')
   })
 
   // Regression test for a real bug: react-native-paper's actual Portal doesn't render
