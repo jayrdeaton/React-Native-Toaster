@@ -1,7 +1,7 @@
 import { type ComponentType, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dimensions, Image, type LayoutChangeEvent, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import Animated, { Extrapolation, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp, interpolate, LinearTransition, useAnimatedKeyboard, useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
+import Animated, { Extrapolation, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp, interpolate, LinearTransition, type SharedValue, useAnimatedKeyboard, useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { scheduleOnRN } from 'react-native-worklets'
 
@@ -64,6 +64,26 @@ type ToastItemProps = {
   toastStyle?: ViewStyle
 }
 
+function buildSwipeGesture(translateX: SharedValue<number>, swipeDismissed: SharedValue<boolean>, screenWidth: number, swipeThreshold: number) {
+  return Gesture.Pan()
+    .onUpdate((e) => {
+      'worklet'
+      translateX.value = e.translationX
+    })
+    .onEnd((e) => {
+      'worklet'
+      if (Math.abs(e.translationX) > swipeThreshold) {
+        const target = e.translationX > 0 ? screenWidth * 1.5 : -screenWidth * 1.5
+        translateX.value = withTiming(target, { duration: 180 }, (finished) => {
+          'worklet'
+          if (finished) swipeDismissed.value = true
+        })
+      } else {
+        translateX.value = withSpring(0)
+      }
+    })
+}
+
 const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, levelIcon, offset, onDismiss, onMeasure, paper, position, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
   const translateX = useSharedValue(0)
   const screenWidth = Dimensions.get('window').width
@@ -104,27 +124,7 @@ const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, le
     return () => clearTimeout(timer)
   }, [toast.id, toast.createdAt, duration, handleDismiss])
 
-  const gesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .onUpdate((e) => {
-          'worklet'
-          translateX.value = e.translationX
-        })
-        .onEnd((e) => {
-          'worklet'
-          if (Math.abs(e.translationX) > swipeThreshold) {
-            const target = e.translationX > 0 ? screenWidth * 1.5 : -screenWidth * 1.5
-            translateX.value = withTiming(target, { duration: 180 }, (finished) => {
-              'worklet'
-              if (finished) swipeDismissed.value = true
-            })
-          } else {
-            translateX.value = withSpring(0)
-          }
-        }),
-    [screenWidth, swipeDismissed, swipeThreshold, translateX]
-  )
+  const gesture = useMemo(() => buildSwipeGesture(translateX, swipeDismissed, screenWidth, swipeThreshold), [screenWidth, swipeDismissed, swipeThreshold, translateX])
 
   const opacity = useDerivedValue(() => interpolate(Math.abs(translateX.value), [0, swipeThreshold], [1, 0.4], Extrapolation.CLAMP))
 
@@ -195,6 +195,7 @@ export const Toaster = ({ backgroundColor, clearButton, duration = 7000, history
   // keyboard instead of above it, the exact bug keyboardAware exists to prevent.
   const keyboard = useAnimatedKeyboard()
   const [heights, setHeights] = useState<Record<string, number>>({})
+  const [prevToasts, setPrevToasts] = useState(toasts)
   const fallback = useFallbackColors()
   const badgeBg = resolvedTheme?.colors.surface ?? fallback.badgeBg
   const badgeTextColor = resolvedTheme?.colors.onSurface ?? fallback.text
@@ -211,12 +212,12 @@ export const Toaster = ({ backgroundColor, clearButton, duration = 7000, history
       clear()
       openHistory()
     }
-  }, [clear, onHistoryPress, openHistory])
+  }, [clear, haptics, onHistoryPress, openHistory])
 
   const handleClearPress = useCallback(() => {
     if (haptics) void haptics.impactAsync(haptics.ImpactFeedbackStyle.Light)
     clear()
-  }, [clear])
+  }, [clear, haptics])
 
   const handleMeasure = useCallback((id: string, height: number) => {
     setHeights((prev) => (prev[id] === height ? prev : { ...prev, [id]: height }))
@@ -242,7 +243,12 @@ export const Toaster = ({ backgroundColor, clearButton, duration = 7000, history
     knownIdsRef.current = new Set(toasts.map((t) => t.id))
   }, [toasts])
 
-  useEffect(() => {
+  // Pruning stale `heights` entries is state derived from `toasts`, not a synchronization with an
+  // external system, so it's adjusted here during render (per
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
+  // rather than in a useEffect, which would cause an extra commit-then-recommit render pass.
+  if (prevToasts !== toasts) {
+    setPrevToasts(toasts)
     setHeights((prev) => {
       const ids = new Set(toasts.map((t) => t.id))
       let changed = false
@@ -253,7 +259,7 @@ export const Toaster = ({ backgroundColor, clearButton, duration = 7000, history
       }
       return changed ? next : prev
     })
-  }, [toasts])
+  }
 
   if (!visibleToasts.length && !historyVisible) return null
 
