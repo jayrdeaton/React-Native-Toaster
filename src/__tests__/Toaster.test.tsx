@@ -3,6 +3,7 @@ import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
 
 import { lastPanCallbacks, panInstanceCount } from '../__mocks__/react-native-gesture-handler'
 import { type HapticsModule, type PaperModule, type ToastProviderProps, ToastProvider } from '../ToastContext'
+import { LEVEL_COLORS } from '../Toast'
 import { Toaster } from '../Toaster'
 import { useToast } from '../useToast'
 
@@ -154,6 +155,28 @@ describe('optional peer injection (paper/haptics)', () => {
       fireEvent.click(clearButton)
     })
     expect(impactAsync).toHaveBeenCalledWith('light')
+  })
+
+  it('uses a per-toast icon/color override instead of the level default', () => {
+    const overridePaper: PaperModule = {
+      ...fakePaper,
+      Icon: ({ color, source }) => <span>{`${source}:${color}`}</span>
+    }
+    const { getApi } = renderToaster(3, { paper: overridePaper })
+    act(() => getApi().success('Flawless Victory', undefined, undefined, { color: '#FFD54F', icon: 'shield-star' }))
+
+    expect(screen.getByText('shield-star:#FFD54F')).toBeTruthy()
+  })
+
+  it('falls back to the level default icon/color when no override is given', () => {
+    const overridePaper: PaperModule = {
+      ...fakePaper,
+      Icon: ({ color, source }) => <span>{`${source}:${color}`}</span>
+    }
+    const { getApi } = renderToaster(3, { paper: overridePaper })
+    act(() => getApi().success('Plain success'))
+
+    expect(screen.getByText(`check-circle:${LEVEL_COLORS.success}`)).toBeTruthy()
   })
 
   it('hides the history and clear stack controls when historyButton/clearButton are null', () => {

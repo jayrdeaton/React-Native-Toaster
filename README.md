@@ -109,10 +109,10 @@ function SaveButton() {
 
 ```ts
 const {
-  error,          // (title, caption?, image?) => void
-  warning,        // (title, caption?, image?) => void
-  info,           // (title, caption?, image?) => void
-  success,        // (title, caption?, image?) => void
+  error,          // (title, caption?, image?, overrides?) => void
+  warning,        // (title, caption?, image?, overrides?) => void
+  info,           // (title, caption?, image?, overrides?) => void
+  success,        // (title, caption?, image?, overrides?) => void
   dismiss,        // (id) => void
   clear,          // () => void, removes all visible toasts
   clearHistory,   // () => void, clears the history log
@@ -189,6 +189,15 @@ Passing an `image` URI renders it in a small square in place of the level icon.
     success: '#16a34a'
   }}
 />
+```
+
+### Per-toast icon/color overrides
+
+`levelColors`/`levelIcons` style every toast of a given level the same way. For a toast whose icon and color are its own identity rather than its level's - a badge, an achievement, a category tag - pass a fourth `overrides` argument to override just that one toast, falling back to the level's own icon/color for whichever half you omit:
+
+```tsx
+success('Flawless Victory', undefined, undefined, { color: '#FFD54F', icon: 'shield-star' })
+success('First Blood', undefined, undefined, { color: '#CD7F32', icon: 'sword' })
 ```
 
 ### Top position
@@ -290,6 +299,8 @@ class Toast {
   title: string | null
   caption: string | null
   image: string | null  // URI, renders an image instead of the level icon
+  icon: string | null   // per-toast icon override - see "Per-toast icon/color overrides"
+  color: string | null  // per-toast color override - see "Per-toast icon/color overrides"
   createdAt: string     // ISO timestamp
 }
 ```
