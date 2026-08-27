@@ -1,6 +1,6 @@
 {
   "name": "@rific/toaster",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Stacking, animated toast notifications for React Native with history and swipe-to-dismiss",
   "keywords": [
     "react-native",
