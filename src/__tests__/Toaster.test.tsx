@@ -243,7 +243,12 @@ describe('optional peer injection (paper/haptics)', () => {
       ...fakePaper,
       Portal: ({ children }) => {
         portalChildren = children
-        notifyHost?.()
+        // notifyHost calls setState on FakePortalHost, a sibling component - deferring to an
+        // effect (vs. calling it inline here, during Portal's own render) avoids "Cannot update a
+        // component while rendering a different component".
+        useEffect(() => {
+          notifyHost?.()
+        })
         return null
       }
     }
