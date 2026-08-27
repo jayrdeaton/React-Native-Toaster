@@ -1,14 +1,14 @@
 import { useCallback } from 'react'
 
-import { Toast, type ToastLevel } from './Toast'
+import { Toast, type ToastLevel, type ToastOverrides } from './Toast'
 import { useToastContext } from './ToastContext'
 
 export const useToast = () => {
   const { dispatch, generateId, maxHistory, state } = useToastContext()
 
   const add = useCallback(
-    (level: ToastLevel, title: string, caption?: string, image?: string) => {
-      const toast = new Toast({ caption, id: generateId(), image, level, title })
+    (level: ToastLevel, title: string, caption?: string, image?: string, overrides?: ToastOverrides) => {
+      const toast = new Toast({ caption, color: overrides?.color, icon: overrides?.icon, id: generateId(), image, level, title })
       dispatch({ maxHistory, toast: { ...toast }, type: 'ADD' })
     },
     [dispatch, generateId, maxHistory]
@@ -20,10 +20,10 @@ export const useToast = () => {
   const openHistory = useCallback(() => dispatch({ type: 'OPEN_HISTORY' }), [dispatch])
   const closeHistory = useCallback(() => dispatch({ type: 'CLOSE_HISTORY' }), [dispatch])
 
-  const error = useCallback((title: string, caption?: string, image?: string) => add('error', title, caption, image), [add])
-  const info = useCallback((title: string, caption?: string, image?: string) => add('info', title, caption, image), [add])
-  const success = useCallback((title: string, caption?: string, image?: string) => add('success', title, caption, image), [add])
-  const warning = useCallback((title: string, caption?: string, image?: string) => add('warning', title, caption, image), [add])
+  const error = useCallback((title: string, caption?: string, image?: string, overrides?: ToastOverrides) => add('error', title, caption, image, overrides), [add])
+  const info = useCallback((title: string, caption?: string, image?: string, overrides?: ToastOverrides) => add('info', title, caption, image, overrides), [add])
+  const success = useCallback((title: string, caption?: string, image?: string, overrides?: ToastOverrides) => add('success', title, caption, image, overrides), [add])
+  const warning = useCallback((title: string, caption?: string, image?: string, overrides?: ToastOverrides) => add('warning', title, caption, image, overrides), [add])
 
   return {
     clear,

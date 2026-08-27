@@ -137,7 +137,12 @@ const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, le
   const exiting = position === 'bottom' ? (isTop ? FadeOutUp.duration(160) : FadeOutDown.duration(160)) : isTop ? FadeOutDown.duration(160) : FadeOutUp.duration(160)
   const marginStyle = position === 'bottom' ? { bottom: 0, marginBottom: offset } : { marginTop: offset, top: 0 }
 
-  const icon = toast.image ? <Image source={{ uri: toast.image }} style={styles.image} /> : Icon && levelIcon ? <Icon color={levelColor} name={levelIcon} size={20} /> : paper && levelIcon ? <paper.Icon color={levelColor} size={20} source={levelIcon} /> : <View style={[styles.indicator, { backgroundColor: levelColor }]} />
+  // A toast's own icon/color (see Toast.ts's ToastOverrides) wins over the level's shared default -
+  // the achievement-badge case this exists for varies icon+color per toast even though every one
+  // of them is the same 'success' level.
+  const effectiveIcon = toast.icon ?? levelIcon
+  const effectiveColor = toast.color ?? levelColor
+  const icon = toast.image ? <Image source={{ uri: toast.image }} style={styles.image} /> : Icon && effectiveIcon ? <Icon color={effectiveColor} name={effectiveIcon} size={20} /> : paper && effectiveIcon ? <paper.Icon color={effectiveColor} size={20} source={effectiveIcon} /> : <View style={[styles.indicator, { backgroundColor: effectiveColor }]} />
 
   const cardContent = (
     <>

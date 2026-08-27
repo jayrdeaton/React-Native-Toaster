@@ -37,6 +37,20 @@ describe('useToast', () => {
     expect(result.current.toasts[0].image).toBe('https://example.com/photo.jpg')
   })
 
+  it('adds a toast with a per-toast icon/color override', () => {
+    const { result } = renderHook(() => useToast(), { wrapper })
+    act(() => result.current.success('Flawless Victory', undefined, undefined, { color: '#FFD54F', icon: 'shield-star' }))
+    expect(result.current.toasts[0].icon).toBe('shield-star')
+    expect(result.current.toasts[0].color).toBe('#FFD54F')
+  })
+
+  it('defaults icon/color to null when no override is given', () => {
+    const { result } = renderHook(() => useToast(), { wrapper })
+    act(() => result.current.success('Done!'))
+    expect(result.current.toasts[0].icon).toBeNull()
+    expect(result.current.toasts[0].color).toBeNull()
+  })
+
   it('records toast in history', () => {
     const { result } = renderHook(() => useToast(), { wrapper })
     act(() => result.current.success('Done!'))
