@@ -1,8 +1,5 @@
 {
   "extends": "@infinitetoken/tsconfig/react-native",
-  "compilerOptions": {
-    "rootDir": "src"
-  },
   "include": ["src"],
   "exclude": ["src/__mocks__"]
 }
