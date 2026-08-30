@@ -6,7 +6,8 @@ import { useToast } from '../useToast'
 
 const wrapper = ({ children }: { children: React.ReactNode }) => React.createElement(ToastProvider, null, children)
 
-const wrapperWithMaxHistory = (maxHistory: number) =>
+const wrapperWithMaxHistory =
+  (maxHistory: number) =>
   ({ children }: { children: React.ReactNode }) =>
     React.createElement(ToastProvider, { children, maxHistory })
 

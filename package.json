@@ -44,9 +44,8 @@
     "!src/__mocks__"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
-    "build:watch": "tsup src/index.ts --format cjs,esm --dts --watch",
-    "ci": "npm run lint && npm test && npm run typecheck && npm run build",
+    "build": "tsup",
+    "build:watch": "tsup --watch",
     "fix": "eslint --fix",
     "lint": "eslint",
     "prepublishOnly": "npm run build",
@@ -57,12 +56,14 @@
     "test": "jest",
     "test:watch": "jest --watchAll",
     "typecheck": "tsc --noEmit",
-    "preversion": "npm run ci"
+    "verify": "npm run lint && npm test && npm run typecheck && npm run build",
+    "preversion": "npm run verify"
   },
   "prettier": "@infinitetoken/eslint-config/prettier",
   "devDependencies": {
-    "@infinitetoken/eslint-config": "^0.1.4",
-    "@infinitetoken/tsconfig": "^0.1.1",
+    "@infinitetoken/eslint-config": "^0.1.8",
+    "@infinitetoken/jest-config": "^0.1.6",
+    "@infinitetoken/tsconfig": "^0.3.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/jest": "^30.0.0",
@@ -82,8 +83,6 @@
     "react-native-reanimated": "^4.5.1",
     "react-native-safe-area-context": "^5.6.2",
     "react-native-worklets": "^0.10.0",
-    "ts-jest": "^29.4.9",
-    "ts-node": "^10.9.2",
     "tsup": "^8.0.0",
     "typescript": "^6.0.3"
   },
