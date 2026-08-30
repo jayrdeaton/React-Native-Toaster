@@ -2,8 +2,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
 
 import { lastPanCallbacks, panInstanceCount } from '../__mocks__/react-native-gesture-handler'
-import { type HapticsModule, type PaperModule, type ToastProviderProps, ToastProvider } from '../ToastContext'
 import { LEVEL_COLORS } from '../Toast'
+import { type HapticsModule, type PaperModule, ToastProvider, type ToastProviderProps } from '../ToastContext'
 import { Toaster } from '../Toaster'
 import { useToast } from '../useToast'
 
