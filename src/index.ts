@@ -3,3 +3,4 @@ export { defaultGenerateId, LEVEL_COLORS, Toast, type ToastLevel, type ToastOver
 export { type HapticsModule, type PaperModule, ToastProvider, type ToastProviderProps } from './ToastContext'
 export { type PaperTheme, Toaster, type ToasterProps } from './Toaster'
 export { useToast } from './useToast'
+export { useUpdateErrorToast } from './useUpdateErrorToast'

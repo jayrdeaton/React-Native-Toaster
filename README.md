@@ -125,6 +125,30 @@ const {
 } = useToast()
 ```
 
+### `useUpdateErrorToast`
+
+A one-line bridge for the common "surface a failed update check as a toast" pattern - every app in the fleet that checks for OTA updates on launch wires a failed check into an `error` toast with this exact closure, so it's factored out here instead of hand-rolled per app:
+
+```tsx
+import { useUpdateErrorToast } from '@rific/toaster'
+
+function UpdateChecker() {
+  const onUpdateError = useUpdateErrorToast()
+
+  useEffect(() => {
+    checkForUpdate().catch((e) => onUpdateError(e.message))
+  }, [onUpdateError])
+
+  return null
+}
+```
+
+```ts
+useUpdateErrorToast(title?: string): (message: string) => void
+```
+
+`title` defaults to `'Update check failed'` - pass your own to customize the toast's heading. The returned callback is a thin wrapper over `useToast().error(title, message)`.
+
 ## Toaster props
 
 | Prop | Type | Default | Description |
