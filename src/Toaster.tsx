@@ -329,6 +329,11 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 12
   },
+  caption: {
+    fontSize: 12,
+    lineHeight: 16,
+    opacity: 0.75
+  },
   card: {
     alignItems: 'center',
     borderRadius: 8,
@@ -346,6 +351,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6
   },
+  chip: {
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2
+  },
   image: {
     borderRadius: 4,
     height: 20,
@@ -360,11 +372,6 @@ const styles = StyleSheet.create({
     left: 0,
     position: 'absolute',
     right: 0
-  },
-  caption: {
-    fontSize: 12,
-    lineHeight: 16,
-    opacity: 0.75
   },
   label: {
     fontSize: 14,
@@ -381,17 +388,6 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 5
   },
-  stackControlsRow: {
-    alignItems: 'center',
-    flexDirection: 'row'
-  },
-  chip: {
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2
-  },
   stackControlsLeft: {
     alignItems: 'flex-start',
     flex: 1,
@@ -401,6 +397,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     flex: 1,
     paddingRight: 16
+  },
+  stackControlsRow: {
+    alignItems: 'center',
+    flexDirection: 'row'
   },
   textColumn: {
     flex: 1,
