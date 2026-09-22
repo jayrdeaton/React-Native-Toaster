@@ -234,6 +234,22 @@ Toasts stack downward from the top edge. Entry and exit animations flip automati
 
 The `keyboardAware` prop has no effect when `position='top'` since the keyboard doesn't overlap the top of the screen.
 
+### Inside a turned or transformed frame
+
+Swipe-to-dismiss is measured in the toast's **own** coordinate space, so on **iOS and Android** it works unchanged inside a frame that is
+rotated or otherwise transformed - for example an app that stays portrait-locked at the OS level and fakes landscape by turning a `View`.
+There is no prop for it and nothing to configure: the pan's distance is the change in the pointer's position *relative to the toast's own
+view* (which the gesture runtime computes through every ancestor transform), not the window-space `translationX`, and the dismiss
+threshold is 40% of the toast's own laid-out width. It is a single-finger gesture, and the distance is measured from where the pan
+activates.
+
+On **web** this does not hold: the gesture runtime derives its coordinates from the element's axis-aligned bounding box, so a rotated
+ancestor is not accounted for there - don't rotate the toaster's ancestors on web.
+
+One thing stays tied to the physical screen: the software keyboard is always at the *physical* bottom, which is not a turned frame's
+bottom edge, so `keyboardAware` lifts by the wrong edge inside a turned frame. If you fake rotation, revert the frame to upright while the
+keyboard is up - then the default is correct again.
+
 ### Portal behavior
 
 When `paper` is injected into `ToastProvider`, the toast stack is automatically wrapped in a Paper `<Portal>` so it renders above modals and other overlays. Without it, `<Toaster />` is an absolutely-positioned `View` that renders in-place. To lift it manually:

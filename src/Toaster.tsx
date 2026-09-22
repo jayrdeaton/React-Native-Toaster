@@ -7,6 +7,7 @@ import { scheduleOnRN } from 'react-native-worklets'
 
 import { HistoryModal } from './HistoryModal'
 import { computeStackOffsets } from './stackLayout'
+import { swipeExitTarget, swipeShouldDismiss } from './swipe'
 import type { Toast, ToastLevel } from './Toast'
 import { LEVEL_COLORS } from './Toast'
 import { type PaperModule, useToastContext } from './ToastContext'
@@ -64,17 +65,36 @@ type ToastItemProps = {
   toastStyle?: ViewStyle
 }
 
-function buildSwipeGesture(translateX: SharedValue<number>, swipeDismissed: SharedValue<boolean>, screenWidth: number, swipeThreshold: number) {
+// Swipe-to-dismiss measured in the toast's OWN coordinate space, not the window's.
+//
+// A pan's `translationX/Y` are reported in WINDOW space, but `x`/`y` are relative to the view the handler is attached to - and UIKit/Android
+// compute that through every ancestor transform. So a toast rendered inside a turned frame (an app that fakes landscape by rotating a View
+// while the OS stays portrait-locked, or any other transformed ancestor) is swiped along ITS OWN horizontal with no knowledge of the rotation:
+// the distance is `x` now minus `x` at touch-down. That only works if the view the gesture is attached to does not itself move while the
+// finger drags (a view that follows the finger keeps `x` constant - which is why RNGH's docs recommend the absolute values in that case), so
+// the detector wraps the STATIONARY wrapper in ToastItem below, and only the card inside it is translated.
+//
+// Two details: (1) the anchor is captured when the pan ACTIVATES (`onStart`), not at touch-down (`onBegin`): Android and web re-base their own
+// translation at activation, so anchoring there makes the card track the finger from 0 on every platform instead of jumping by the touch slop
+// (~8dp) on the first update. (2) `maxPointers(1)`: `x` is the centroid of every finger on the view, so a second finger landing or lifting
+// would step it discontinuously (window-space `translationX` stayed continuous across pointer changes) and could dismiss the toast by accident.
+// `clearance` is how far the exit target must reach to leave the screen whatever the toast's width (see swipeExitTarget).
+function buildSwipeGesture(translateX: SharedValue<number>, swipeDismissed: SharedValue<boolean>, startX: SharedValue<number>, width: number, clearance: number) {
   return Gesture.Pan()
+    .maxPointers(1)
+    .onStart((e) => {
+      'worklet'
+      startX.value = e.x
+    })
     .onUpdate((e) => {
       'worklet'
-      translateX.value = e.translationX
+      translateX.value = e.x - startX.value
     })
     .onEnd((e) => {
       'worklet'
-      if (Math.abs(e.translationX) > swipeThreshold) {
-        const target = e.translationX > 0 ? screenWidth * 1.5 : -screenWidth * 1.5
-        translateX.value = withTiming(target, { duration: 180 }, (finished) => {
+      const distance = e.x - startX.value
+      if (swipeShouldDismiss(distance, width)) {
+        translateX.value = withTiming(swipeExitTarget(distance, clearance), { duration: 180 }, (finished) => {
           'worklet'
           if (finished) swipeDismissed.value = true
         })
@@ -86,15 +106,28 @@ function buildSwipeGesture(translateX: SharedValue<number>, swipeDismissed: Shar
 
 const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, levelIcon, offset, onDismiss, onMeasure, paper, position, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
   const translateX = useSharedValue(0)
-  const screenWidth = Dimensions.get('window').width
-  const swipeThreshold = screenWidth * 0.4
+  // Where the pointer went down along the toast's own x axis, and the toast's own width (the reference for the dismiss distance and the exit
+  // target). The width starts at the window's - a sensible guess until the first layout - and is replaced by the real laid-out width.
+  const startX = useSharedValue(0)
+  const [width, setWidth] = useState(() => Dimensions.get('window').width)
+  // The exit target must clear the screen even when the stack is narrower than it (wrapperStyle) or the frame is turned (window width and height swap),
+  // so it is measured against the larger of the toast's own width and either window dimension.
+  const { height: windowHeight, width: windowWidth } = Dimensions.get('window')
+  const clearance = Math.max(width, windowWidth, windowHeight)
   const fallback = useFallbackColors()
 
   const effectiveBg = backgroundColor ?? theme?.colors.surface ?? fallback.surface
   const effectiveText = textColor ?? theme?.colors.onSurface ?? fallback.text
 
   const handleDismiss = useCallback(() => onDismiss(toast.id), [onDismiss, toast.id])
-  const handleLayout = useCallback((e: LayoutChangeEvent) => onMeasure(toast.id, e.nativeEvent.layout.height), [onMeasure, toast.id])
+  const handleLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const { height, width: laidOutWidth } = e.nativeEvent.layout
+      if (laidOutWidth > 0) setWidth(laidOutWidth)
+      onMeasure(toast.id, height)
+    },
+    [onMeasure, toast.id]
+  )
 
   // scheduleOnRN should be called from a worklet declared in the RN-runtime-scoped function
   // body, not from one manufactured deeper inside another callback - signalling completion
@@ -124,9 +157,9 @@ const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, le
     return () => clearTimeout(timer)
   }, [toast.id, toast.createdAt, duration, handleDismiss])
 
-  const gesture = useMemo(() => buildSwipeGesture(translateX, swipeDismissed, screenWidth, swipeThreshold), [screenWidth, swipeDismissed, swipeThreshold, translateX])
+  const gesture = useMemo(() => buildSwipeGesture(translateX, swipeDismissed, startX, width, clearance), [clearance, startX, swipeDismissed, translateX, width])
 
-  const opacity = useDerivedValue(() => interpolate(Math.abs(translateX.value), [0, swipeThreshold], [1, 0.4], Extrapolation.CLAMP))
+  const opacity = useDerivedValue(() => interpolate(Math.abs(translateX.value), [0, width * 0.4], [1, 0.4], Extrapolation.CLAMP))
 
   const swipeStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
@@ -162,8 +195,10 @@ const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, le
 
   return (
     <Animated.View layout={LinearTransition.duration(220)} style={[styles.itemContainer, marginStyle]}>
-      <Animated.View entering={entering} exiting={exiting} onLayout={handleLayout}>
-        <GestureDetector gesture={gesture}>
+      {/* The detector wraps the STATIONARY wrapper (which also carries the enter/exit animation and the layout measurement); only the card inside is
+      translated by the swipe. See buildSwipeGesture for why the gesture's own view must not move. */}
+      <GestureDetector gesture={gesture}>
+        <Animated.View entering={entering} exiting={exiting} onLayout={handleLayout}>
           <Animated.View style={swipeStyle}>
             {paper ? (
               <paper.Surface elevation={surfaceElevation ?? 1} style={[styles.card, toastStyle, backgroundColor ? { backgroundColor } : undefined]}>
@@ -173,8 +208,8 @@ const ToastItem = memo(({ backgroundColor, duration, Icon, isTop, levelColor, le
               <View style={[styles.card, styles.cardShadow, { backgroundColor: effectiveBg }, toastStyle]}>{cardContent}</View>
             )}
           </Animated.View>
-        </GestureDetector>
-      </Animated.View>
+        </Animated.View>
+      </GestureDetector>
     </Animated.View>
   )
 })

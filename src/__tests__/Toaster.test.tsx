@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
 
-import { lastPanCallbacks, panInstanceCount } from '../__mocks__/react-native-gesture-handler'
+import { lastPanCallbacks, lastPanConfig, panInstanceCount } from '../__mocks__/react-native-gesture-handler'
+import { lastOnLayout } from '../__mocks__/react-native-reanimated'
 import { LEVEL_COLORS } from '../Toast'
 import { type HapticsModule, type PaperModule, ToastProvider, type ToastProviderProps } from '../ToastContext'
 import { Toaster } from '../Toaster'
@@ -23,8 +24,20 @@ const renderToaster = (limit = 3, providerProps: Partial<Omit<ToastProviderProps
   return { container, getApi: () => api as ToastApi }
 }
 
+// A swipe as the gesture runtime reports it: the pan activates at local x = `from`, then the pointer at local x = `to`. `x` is relative to the view the
+// handler is attached to (the toast's stationary wrapper); `translationX/Y` are in WINDOW space and are deliberately passed as `extra` so a test can
+// say what they were.
+const swipe = (from: number, to: number, extra: { translationX?: number; translationY?: number } = {}) => {
+  lastPanCallbacks.onStart?.({ x: from, y: 0 })
+  lastPanCallbacks.onUpdate?.({ x: to, y: 0, ...extra })
+  lastPanCallbacks.onEnd?.({ x: to, y: 0, ...extra })
+}
+
 beforeEach(() => {
   panInstanceCount.current = 0
+  lastPanCallbacks.onStart = undefined
+  lastPanConfig.maxPointers = undefined
+  lastOnLayout.current = undefined
   lastPanCallbacks.onEnd = undefined
   lastPanCallbacks.onUpdate = undefined
 })
@@ -63,7 +76,7 @@ describe('Toaster', () => {
 
     expect(lastPanCallbacks.onEnd).toBeDefined()
     act(() => {
-      lastPanCallbacks.onEnd?.({ translationX: 300 })
+      swipe(0, 300)
     })
 
     expect(getApi().toasts.find((t) => t.id === toastId)).toBeUndefined()
@@ -75,7 +88,7 @@ describe('Toaster', () => {
     const toastId = getApi().toasts[0].id
 
     act(() => {
-      lastPanCallbacks.onEnd?.({ translationX: 20 })
+      swipe(0, 20)
     })
 
     expect(getApi().toasts.find((t) => t.id === toastId)).toBeDefined()
@@ -98,12 +111,88 @@ describe('Toaster', () => {
     // order and the *last* Gesture.Pan() to register - the one lastPanCallbacks holds - is
     // the oldest (first-added) toast.
     act(() => {
-      lastPanCallbacks.onEnd?.({ translationX: -300 })
+      swipe(0, -300)
     })
 
     const remainingIds = getApi().toasts.map((t) => t.id)
     expect(remainingIds).toEqual([secondId])
     expect(remainingIds).not.toContain(firstId)
+  })
+})
+
+// The swipe is measured in the toast's OWN coordinate space (see buildSwipeGesture), so it works unchanged inside a frame turned by any
+// transform - an app faking landscape by rotating a View, say - with no knowledge of the rotation: `translationX/Y` are window-space and are
+// never read. The mocked window is 375 wide, so the dismiss distance is 150 (40%).
+describe("swipe in the toast's own coordinates", () => {
+  const dismisses = (from: number, to: number, extra?: { translationX?: number; translationY?: number }) => {
+    const { getApi } = renderToaster(3)
+    act(() => getApi().success('Swipe me'))
+    const toastId = getApi().toasts[0].id
+    act(() => swipe(from, to, extra))
+    return getApi().toasts.find((t) => t.id === toastId) === undefined
+  }
+
+  it('never reads the window-space translation: a large translationX/Y with a small local move does not dismiss', () => {
+    // What a +90 turned frame reports for a swipe along its own horizontal: the window-space translation is vertical, and local x moves.
+    expect(dismisses(0, 200, { translationX: 0, translationY: 400 })).toBe(true)
+    // ...and the reverse: a big window-space drag that barely moves the toast's own x is not a swipe.
+    expect(dismisses(0, 20, { translationX: 400, translationY: 400 })).toBe(false)
+  })
+
+  it("is relative to where the pointer went down, not to the view's own origin", () => {
+    expect(dismisses(100, 150)).toBe(false) // moved 50
+    expect(dismisses(100, 300)).toBe(true) // moved 200
+    expect(dismisses(300, 100)).toBe(true) // moved -200 (the other direction)
+  })
+
+  it('dismisses in either direction, past 40% of the toast width, and not before', () => {
+    expect(dismisses(0, 149)).toBe(false)
+    expect(dismisses(0, 151)).toBe(true)
+    expect(dismisses(0, -149)).toBe(false)
+    expect(dismisses(0, -151)).toBe(true)
+  })
+
+  it('accepts a single finger only, since `x` is the centroid of every finger on the view', () => {
+    const { getApi } = renderToaster(3)
+    act(() => getApi().success('One'))
+    expect(lastPanConfig.maxPointers).toBe(1)
+  })
+
+  it("measures the dismiss distance against the toast's OWN laid-out width once it has one, rebuilding the gesture for it", () => {
+    const { getApi } = renderToaster(3)
+    act(() => getApi().success('Wide'))
+    const toastId = getApi().toasts[0].id
+    const builtBefore = panInstanceCount.current
+
+    // A toast 800 wide (e.g. in a turned frame, where the window's width is the wrong axis): 40% is 320, not the window's 150.
+    act(() => lastOnLayout.current?.({ nativeEvent: { layout: { x: 0, y: 0, width: 800, height: 60 } } }))
+    expect(panInstanceCount.current).toBe(builtBefore + 1)
+
+    act(() => swipe(0, 300))
+    expect(getApi().toasts.find((t) => t.id === toastId)).toBeDefined() // 300 < 320
+    act(() => swipe(0, 340))
+    expect(getApi().toasts.find((t) => t.id === toastId)).toBeUndefined() // 340 > 320
+  })
+
+  it('ignores a layout event with no width (keeps the previous reference)', () => {
+    const { getApi } = renderToaster(3)
+    act(() => getApi().success('One'))
+    const builtBefore = panInstanceCount.current
+
+    act(() => lastOnLayout.current?.({ nativeEvent: { layout: { x: 0, y: 0, width: 0, height: 60 } } }))
+    expect(panInstanceCount.current).toBe(builtBefore)
+  })
+
+  it('does not rebuild the Pan gesture as a swipe updates (its state lives in shared values)', () => {
+    const { getApi } = renderToaster(3)
+    act(() => getApi().success('One'))
+    expect(panInstanceCount.current).toBe(1)
+
+    act(() => {
+      lastPanCallbacks.onStart?.({ x: 0, y: 0 })
+      lastPanCallbacks.onUpdate?.({ x: 30, y: 0 })
+    })
+    expect(panInstanceCount.current).toBe(1)
   })
 })
 

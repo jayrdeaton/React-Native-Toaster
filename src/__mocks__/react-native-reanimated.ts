@@ -2,8 +2,15 @@ import React, { useEffect, useRef } from 'react'
 
 const identity = (x: any) => x
 
+// Test-only instrumentation: the `onLayout` handler most recently passed to an Animated.View (the toast wrapper is the only one that has one), so a test can
+// deliver a layout event of a given width.
+export const lastOnLayout: { current?: (e: any) => void } = {}
+
 const Animated = {
-  View: ({ children }: { children?: React.ReactNode }) => children ?? null
+  View: ({ children, onLayout }: { children?: React.ReactNode; onLayout?: (e: any) => void }) => {
+    if (onLayout) lastOnLayout.current = onLayout
+    return children ?? null
+  }
 }
 
 export default Animated
