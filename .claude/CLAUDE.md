@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # @rific/toaster
 
-Standalone npm package. Stacking, animated toast notifications for React Native — self-contained state (Context + useReducer, no Redux), swipe-to-dismiss, keyboard-aware positioning, and toast history. Extracted from CashierFu-Utility (`../CashierFu-Utility`) where it lives as the Snackbar implementation.
+Standalone npm package. Stacking, animated toast notifications for React Native — self-contained state (Context + useReducer, no Redux), swipe-to-dismiss, keyboard-aware positioning, and toast history. Extracted from Utility (`../Utility`) where it lives as the Snackbar implementation.
 
 Published under the `rific` npm org. Sibling package: `@rific/heatmap` (`../React-Native-Heatmap`).
 
