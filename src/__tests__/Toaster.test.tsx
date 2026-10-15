@@ -24,17 +24,38 @@ const renderToaster = (limit = 3, providerProps: Partial<Omit<ToastProviderProps
   return { container, getApi: () => api as ToastApi }
 }
 
-// A swipe as the gesture runtime reports it: the pan activates at local x = `from`, then the pointer at local x = `to`. `x` is relative to the view the
-// handler is attached to (the toast's stationary wrapper); `translationX/Y` are in WINDOW space and are deliberately passed as `extra` so a test can
-// say what they were.
+// A swipe as the gesture runtime reports it: the pointer goes down and the pan activates at local x = `from`, then the pointer is at local x = `to`.
+// `x` is relative to the view the handler is attached to (the toast's stationary wrapper); `translationX/Y` are in WINDOW space and are deliberately
+// passed as `extra` so a test can say what they were. Every call happens in the same millisecond, so the pointer has no speed: only the distance counts.
 const swipe = (from: number, to: number, extra: { translationX?: number; translationY?: number } = {}) => {
+  lastPanCallbacks.onBegin?.({ x: from, y: 0 })
   lastPanCallbacks.onStart?.({ x: from, y: 0 })
   lastPanCallbacks.onUpdate?.({ x: to, y: 0, ...extra })
   lastPanCallbacks.onEnd?.({ x: to, y: 0, ...extra })
 }
 
+// A pan sampled over time: `points` are [ms after activation, local x, local y], after a touch-down at `down` and activation at the first point (the clock
+// is Date.now, which the gesture samples for the pointer's speed). The release is at the last point, `releaseAfter` ms after it.
+const timedPan = (down: [number, number], points: [number, number, number][], releaseAfter = 0) => {
+  const now = jest.spyOn(Date, 'now')
+  const at = (ms: number) => now.mockReturnValue(10_000 + ms)
+  const [[, startX, startY], ...moves] = points
+  at(0)
+  lastPanCallbacks.onBegin?.({ x: down[0], y: down[1] })
+  lastPanCallbacks.onStart?.({ x: startX, y: startY })
+  for (const [ms, x, y] of moves) {
+    at(ms)
+    lastPanCallbacks.onUpdate?.({ x, y })
+  }
+  const [lastMs, lastX, lastY] = points[points.length - 1]
+  at(lastMs + releaseAfter)
+  lastPanCallbacks.onEnd?.({ x: lastX, y: lastY })
+  now.mockRestore()
+}
+
 beforeEach(() => {
   panInstanceCount.current = 0
+  lastPanCallbacks.onBegin = undefined
   lastPanCallbacks.onStart = undefined
   lastPanConfig.maxPointers = undefined
   lastOnLayout.current = undefined
@@ -122,7 +143,7 @@ describe('Toaster', () => {
 
 // The swipe is measured in the toast's OWN coordinate space (see buildSwipeGesture), so it works unchanged inside a frame turned by any
 // transform - an app faking landscape by rotating a View, say - with no knowledge of the rotation: `translationX/Y` are window-space and are
-// never read. The mocked window is 375 wide, so the dismiss distance is 150 (40%).
+// never read. The mocked window is 375 wide, so the dismiss distance is 112.5 (30%).
 describe("swipe in the toast's own coordinates", () => {
   const dismisses = (from: number, to: number, extra?: { translationX?: number; translationY?: number }) => {
     const { getApi } = renderToaster(3)
@@ -145,11 +166,11 @@ describe("swipe in the toast's own coordinates", () => {
     expect(dismisses(300, 100)).toBe(true) // moved -200 (the other direction)
   })
 
-  it('dismisses in either direction, past 40% of the toast width, and not before', () => {
-    expect(dismisses(0, 149)).toBe(false)
-    expect(dismisses(0, 151)).toBe(true)
-    expect(dismisses(0, -149)).toBe(false)
-    expect(dismisses(0, -151)).toBe(true)
+  it('dismisses in either direction, past 30% of the toast width, and not before', () => {
+    expect(dismisses(0, 112)).toBe(false)
+    expect(dismisses(0, 113)).toBe(true)
+    expect(dismisses(0, -112)).toBe(false)
+    expect(dismisses(0, -113)).toBe(true)
   })
 
   it('accepts a single finger only, since `x` is the centroid of every finger on the view', () => {
@@ -164,14 +185,14 @@ describe("swipe in the toast's own coordinates", () => {
     const toastId = getApi().toasts[0].id
     const builtBefore = panInstanceCount.current
 
-    // A toast 800 wide (e.g. in a turned frame, where the window's width is the wrong axis): 40% is 320, not the window's 150.
+    // A toast 800 wide (e.g. in a turned frame, where the window's width is the wrong axis): 30% is 240, not the window's 112.5.
     act(() => lastOnLayout.current?.({ nativeEvent: { layout: { x: 0, y: 0, width: 800, height: 60 } } }))
     expect(panInstanceCount.current).toBe(builtBefore + 1)
 
-    act(() => swipe(0, 300))
-    expect(getApi().toasts.find((t) => t.id === toastId)).toBeDefined() // 300 < 320
-    act(() => swipe(0, 340))
-    expect(getApi().toasts.find((t) => t.id === toastId)).toBeUndefined() // 340 > 320
+    act(() => swipe(0, 230))
+    expect(getApi().toasts.find((t) => t.id === toastId)).toBeDefined() // 230 < 240
+    act(() => swipe(0, 250))
+    expect(getApi().toasts.find((t) => t.id === toastId)).toBeUndefined() // 250 > 240
   })
 
   it('ignores a layout event with no width (keeps the previous reference)', () => {
@@ -193,6 +214,206 @@ describe("swipe in the toast's own coordinates", () => {
       lastPanCallbacks.onUpdate?.({ x: 30, y: 0 })
     })
     expect(panInstanceCount.current).toBe(1)
+  })
+})
+
+// A flick dismisses a toast however short it was: the pointer's speed is sampled from its own local positions against the clock, and only the speed
+// at release counts.
+describe('a flick dismisses', () => {
+  // The pointer goes down where the pan activates unless `down` says otherwise (a tie locks the pan sideways).
+  const flick = (points: [number, number, number][], releaseAfter = 0, toasterProps: Partial<ComponentProps<typeof Toaster>> = {}, down: [number, number] = [points[0][1], points[0][2]]) => {
+    const { getApi } = renderToaster(3, {}, toasterProps)
+    act(() => getApi().success('Flick me'))
+    const toastId = getApi().toasts[0].id
+    act(() => timedPan(down, points, releaseAfter))
+    return getApi().toasts.find((t) => t.id === toastId) === undefined
+  }
+
+  it('a short, fast sideways flick, either way', () => {
+    // 30pt in 24ms: far below the 112.5pt the distance alone needs.
+    expect(
+      flick([
+        [0, 100, 0],
+        [8, 110, 0],
+        [16, 120, 0],
+        [24, 130, 0]
+      ])
+    ).toBe(true)
+    expect(
+      flick([
+        [0, 100, 0],
+        [8, 90, 0],
+        [16, 80, 0],
+        [24, 70, 0]
+      ])
+    ).toBe(true)
+  })
+
+  it('not the same distance dragged slowly', () => {
+    expect(
+      flick([
+        [0, 100, 0],
+        [200, 110, 0],
+        [400, 120, 0],
+        [600, 130, 0]
+      ])
+    ).toBe(false)
+  })
+
+  it('not a fast move the pointer then held still before lifting', () => {
+    expect(
+      flick(
+        [
+          [0, 100, 0],
+          [8, 110, 0],
+          [16, 120, 0],
+          [24, 130, 0]
+        ],
+        120
+      )
+    ).toBe(false)
+  })
+
+  it('not a flick back toward where it started', () => {
+    // Dragged 60 out slowly, then flicked 20 back: still 40 out, moving the other way.
+    expect(
+      flick([
+        [0, 100, 0],
+        [400, 130, 0],
+        [800, 160, 0],
+        [808, 150, 0],
+        [816, 140, 0]
+      ])
+    ).toBe(false)
+  })
+
+  it('not a tap whose jitter happens to be quick', () => {
+    expect(
+      flick([
+        [0, 100, 0],
+        [4, 104, 0],
+        [8, 108, 0]
+      ])
+    ).toBe(false) // 8pt, under the 12pt minimum
+  })
+
+  it("a short flick toward the stack's edge", () => {
+    // 15pt in 24ms, under the 28pt half-height the distance alone needs.
+    expect(
+      flick(
+        [
+          [0, 50, 10],
+          [8, 50, 15],
+          [16, 50, 20],
+          [24, 50, 25]
+        ],
+        0,
+        {},
+        [50, 0]
+      )
+    ).toBe(true) // bottom: down
+    expect(
+      flick(
+        [
+          [0, 50, -10],
+          [8, 50, -15],
+          [16, 50, -20],
+          [24, 50, -25]
+        ],
+        0,
+        { position: 'top' },
+        [50, 0]
+      )
+    ).toBe(true) // top: up
+    expect(
+      flick(
+        [
+          [0, 50, -10],
+          [8, 50, -15],
+          [16, 50, -20],
+          [24, 50, -25]
+        ],
+        0,
+        {},
+        [50, 0]
+      )
+    ).toBe(false) // bottom: up is away from its edge
+  })
+})
+
+// A toast can also be pushed back off the edge its stack sits on - down for the default bottom stack, up for a top one - the way a banner is
+// dismissed. The axis is locked when the pan activates, by how the pointer had moved since touch-down.
+describe('swipe toward the edge', () => {
+  const pan = (down: [number, number], start: [number, number], end: [number, number], toasterProps: Partial<ComponentProps<typeof Toaster>> = {}, height?: number) => {
+    const { getApi } = renderToaster(3, {}, toasterProps)
+    act(() => getApi().success('Push me'))
+    const toastId = getApi().toasts[0].id
+    if (height !== undefined) act(() => lastOnLayout.current?.({ nativeEvent: { layout: { x: 0, y: 0, width: 375, height } } }))
+    act(() => {
+      lastPanCallbacks.onBegin?.({ x: down[0], y: down[1] })
+      lastPanCallbacks.onStart?.({ x: start[0], y: start[1] })
+      lastPanCallbacks.onUpdate?.({ x: end[0], y: end[1] })
+      lastPanCallbacks.onEnd?.({ x: end[0], y: end[1] })
+    })
+    return getApi().toasts.find((t) => t.id === toastId) === undefined
+  }
+
+  it('dismisses a bottom toast pushed down past half its height, and not before', () => {
+    // The default height before a layout is 56, so half is 28.
+    expect(pan([50, 0], [50, 10], [50, 37])).toBe(false) // 27 past activation
+    expect(pan([50, 0], [50, 10], [50, 39])).toBe(true) // 29
+  })
+
+  it('never dismisses a bottom toast pushed up, however far', () => {
+    expect(pan([50, 0], [50, -10], [50, -400])).toBe(false)
+  })
+
+  it('dismisses a top toast pushed up, and never one pushed down', () => {
+    expect(pan([50, 0], [50, -10], [50, -40], { position: 'top' })).toBe(true)
+    expect(pan([50, 0], [50, 10], [50, 400], { position: 'top' })).toBe(false)
+  })
+
+  it("measures half the toast's OWN laid-out height", () => {
+    expect(pan([50, 0], [50, 10], [50, 50], {}, 100)).toBe(false) // 40 < 50
+    expect(pan([50, 0], [50, 10], [50, 70], {}, 100)).toBe(true) // 60 > 50
+  })
+
+  it('locks the axis at activation: a pan that started sideways ignores a later vertical move, and the other way round', () => {
+    expect(pan([50, 0], [62, 2], [62, 300])).toBe(false) // sideways: moved 0 along x
+    expect(pan([50, 0], [52, 12], [300, 12])).toBe(false) // vertical: moved 0 along y
+  })
+})
+
+describe('custom card and text styles', () => {
+  it('draws each card with the Card component, handing it the card style, the content and the toast', () => {
+    const cards: { level: string; style: unknown }[] = []
+    const Card = ({ children, style, toast }: { children: ReactNode; style: unknown; toast: { level: string } }) => {
+      cards.push({ level: toast.level, style })
+      return <div data-testid='card'>{children}</div>
+    }
+    const { container, getApi } = renderToaster(3, {}, { Card, toastStyle: { marginHorizontal: 0 } })
+    act(() => getApi().warning('Careful', 'Details'))
+
+    expect(screen.getByTestId('card').textContent).toBe('CarefulDetails')
+    expect(container.textContent).toContain('Careful')
+    const last = cards[cards.length - 1]
+    expect(last.level).toBe('warning')
+    const flat = Object.assign({}, ...(last.style as object[]).filter(Boolean))
+    expect(flat).toMatchObject({ flexDirection: 'row', marginHorizontal: 0 })
+  })
+
+  it('applies labelStyle to the title and captionStyle to the caption, over the built-in styles', () => {
+    const { container, getApi } = renderToaster(3, {}, { captionStyle: { color: '#123456', fontFamily: 'Caption' }, labelStyle: { fontFamily: 'Label' }, textColor: '#fff' })
+    act(() => getApi().info('Title', 'Caption'))
+
+    const styleOf = (text: string) =>
+      JSON.parse(
+        Array.from(container.querySelectorAll('span'))
+          .find((el) => el.textContent === text)
+          ?.getAttribute('data-rn-style') ?? '{}'
+      )
+    expect(styleOf('Title')).toMatchObject({ color: '#fff', fontFamily: 'Label', fontSize: 14 })
+    expect(styleOf('Caption')).toMatchObject({ color: '#123456', fontFamily: 'Caption', fontSize: 12 })
   })
 })
 

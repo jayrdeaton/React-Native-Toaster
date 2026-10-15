@@ -50,7 +50,9 @@ const FlatList = <T,>({ data, ItemSeparatorComponent, ListEmptyComponent, render
 export const Image = stub
 export const Modal = stub
 export const Pressable = stub
-export const Text = stub
+// Text renders a span carrying its flattened style, so a test can check what a toast's title/caption were styled with.
+const flattenStyle = (style: unknown): Record<string, unknown> => (Array.isArray(style) ? Object.assign({}, ...style.map(flattenStyle)) : style && typeof style === 'object' ? (style as Record<string, unknown>) : {})
+export const Text = ({ children, style }: { children?: React.ReactNode; style?: unknown }) => <span data-rn-style={JSON.stringify(flattenStyle(style))}>{children}</span>
 export const TouchableOpacity = stub
 export const View = stub
 

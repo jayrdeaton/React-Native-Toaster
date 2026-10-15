@@ -1,6 +1,6 @@
 export { type HistoryContainerProps, HistoryModal, type HistoryModalProps } from './HistoryModal'
 export { defaultGenerateId, LEVEL_COLORS, Toast, type ToastLevel, type ToastOverrides } from './Toast'
 export { type HapticsModule, type PaperModule, ToastProvider, type ToastProviderProps } from './ToastContext'
-export { type PaperTheme, Toaster, type ToasterProps } from './Toaster'
+export { type PaperTheme, type ToastCardProps, Toaster, type ToasterProps } from './Toaster'
 export { useToast } from './useToast'
 export { useUpdateErrorToast } from './useUpdateErrorToast'

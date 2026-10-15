@@ -1,15 +1,55 @@
 // The swipe-to-dismiss rules, kept as tiny worklet functions so they are unit-testable without a gesture runtime. `distance` is how far
-// the pointer has moved along the toast's OWN x axis since it went down (see Toaster.tsx's buildSwipeGesture for how that is measured),
-// `width` is the toast's own laid-out width.
+// the pointer has moved along one of the toast's OWN axes since the pan activated (see Toaster.tsx's buildSwipeGesture for how that is
+// measured), `length` is the toast's own laid-out size along that axis, and `velocity` is the pointer's speed along it, in points per second
+// (sampled from those same local positions, see sampleVelocity).
 
-/** A swipe past this fraction of the toast's width dismisses it. */
-export const SWIPE_DISMISS_FRACTION = 0.4
-/** A dismissed toast flies out to this multiple of its width, in the direction it was swiped. */
+/** A sideways swipe past this fraction of the toast's width dismisses it. */
+export const SWIPE_DISMISS_FRACTION = 0.3
+/** A swipe toward the edge the stack sits on (up for `position='top'`, down for `'bottom'`) past this fraction of the toast's height dismisses it. */
+export const SWIPE_EDGE_DISMISS_FRACTION = 0.5
+/** A flick at least this fast (points per second, moving the way it was swiped) dismisses the toast however short it was... */
+export const SWIPE_FLING_VELOCITY = 500
+/** ...once it has moved this far, so the jitter of a tap can never count as one. */
+export const SWIPE_FLING_MIN_DISTANCE = 12
+/** How much of each new sample's speed the running velocity takes (an exponential moving average), so one uneven step can't make or break a flick. */
+export const SWIPE_VELOCITY_SMOOTHING = 0.6
+/** A pointer that hasn't moved for this long before it lifts was held still, not flicked. */
+export const SWIPE_VELOCITY_STALE_MS = 80
+/** A drag AWAY from the stack's edge moves the toast this fraction of the way, so it gives a little but never leaves. */
+export const SWIPE_EDGE_RESISTANCE = 0.2
+/** A dismissed toast flies out to this multiple of the clearance length, in the direction it was swiped. */
 export const SWIPE_EXIT_FACTOR = 1.5
 
-export function swipeShouldDismiss(distance: number, width: number): boolean {
+export function swipeShouldDismiss(distance: number, length: number, velocity = 0, fraction = SWIPE_DISMISS_FRACTION): boolean {
   'worklet'
-  return Math.abs(distance) > width * SWIPE_DISMISS_FRACTION
+  if (Math.abs(distance) > length * fraction) return true
+  return Math.abs(distance) >= SWIPE_FLING_MIN_DISTANCE && Math.abs(velocity) >= SWIPE_FLING_VELOCITY && Math.sign(velocity) === Math.sign(distance)
+}
+
+/** The axis a pan is locked to, from how far the pointer had moved since touch-down when it activated: sideways unless it went mostly up or down. */
+export function swipeIsVertical(dx: number, dy: number): boolean {
+  'worklet'
+  return Math.abs(dy) > Math.abs(dx)
+}
+
+/** Where a vertical drag puts the toast: all the way toward the stack's edge (`edge` is -1 for the top, 1 for the bottom), a little the other way. */
+export function swipeEdgeDrag(distance: number, edge: number): number {
+  'worklet'
+  return distance * edge >= 0 ? distance : distance * SWIPE_EDGE_RESISTANCE
+}
+
+/** The running velocity after a pointer moved `delta` points in `elapsedMs`. A sample with no elapsed time changes nothing (the caller carries its
+ * movement into the next one). */
+export function sampleVelocity(previous: number, delta: number, elapsedMs: number): number {
+  'worklet'
+  if (elapsedMs <= 0) return previous
+  return previous + ((delta / elapsedMs) * 1000 - previous) * SWIPE_VELOCITY_SMOOTHING
+}
+
+/** The velocity a release counts with: none if the pointer stopped before it lifted. */
+export function releaseVelocity(velocity: number, msSinceLastMove: number): number {
+  'worklet'
+  return msSinceLastMove > SWIPE_VELOCITY_STALE_MS ? 0 : velocity
 }
 
 /** `clearance` is the length that must be cleared to leave the screen - the toast's own width, or the larger window dimension when the stack is narrower

@@ -1,12 +1,12 @@
 # @rific/toaster
 
-Stacking, animated toast notifications for React Native. Toasts stack on top of each other, auto-dismiss with a configurable timer, and swipe away horizontally. A hidden-count badge appears when the stack exceeds your limit.
+Stacking, animated toast notifications for React Native. Toasts stack on top of each other, auto-dismiss with a configurable timer, and swipe away sideways or off the edge they sit on. A hidden-count badge appears when the stack exceeds your limit.
 
 ## Features
 
 - Stacking toasts from the top or bottom edge with animated entry, exit, and reflow
 - Stack spacing automatically adapts to each toast's real measured height, long captions or wrapped titles never overlap the toast next to them
-- Swipe-to-dismiss with spring snap-back below threshold
+- Swipe-to-dismiss sideways or back off the stack's edge, with a quick flick enough on its own and a spring snap-back below threshold
 - Auto-dismiss with per-toast elapsed time tracking (resumable across re-renders)
 - Keyboard-aware positioning, shifts above the software keyboard automatically
 - Toast history (up to 100 entries, survives individual dismissals)
@@ -170,6 +170,9 @@ useUpdateErrorToast(title?: string): (message: string) => void
 | `historyButton` | `ReactNode` | built-in chip/pill, hidden until `history` has entries | Replace the "history" stack control with your own node. Pass `null` to hide it. |
 | `clearButton` | `ReactNode` | built-in chip/pill | Replace the "clear" stack control with your own node. Pass `null` to hide it. |
 | `toastStyle` | `ViewStyle` | - | Style applied to each toast card. |
+| `Card` | `ComponentType<ToastCardProps>` | - | Draws each toast's card in place of the built-in one. See [Custom card](#custom-card). |
+| `labelStyle` | `StyleProp<TextStyle>` | - | Merged over the title's built-in style (14/20 in the text color), e.g. to set your app's font. |
+| `captionStyle` | `StyleProp<TextStyle>` | - | Merged over the caption's built-in style (12/16, the text color at 75% opacity). |
 | `wrapperStyle` | `ViewStyle` | - | Style applied to the outer stack container. |
 
 `historyButton`/`clearButton`/`historyModal` are three-state slots: omit the prop for the built-in control, pass `null` to hide it, or pass your own node to replace it. A custom node is responsible for its own press handling and haptics - pull `clear`/`openHistory` off `useToast()`.
@@ -190,6 +193,32 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
     success: 'check-circle'
   }}
 />
+```
+
+### Swiping a toast away
+
+A toast is dismissed by either of two swipes, locked to one axis when the pan starts:
+
+- **Sideways**, either way, past 30% of the toast's width.
+- **Toward the edge its stack sits on** (down for the default bottom stack, up for `position='top'`), past half the toast's height: the way a banner is pushed back off the screen. A drag the other way only gives a little and springs back.
+
+A quick flick (about 500pt/s, moving the way it was swiped, at least 12pt) dismisses it either way however short it was. A pointer held still before it lifts isn't a flick. Anything less springs back.
+
+### Custom card
+
+`Card` replaces the card each toast is drawn on (a plain `View`, or Paper's `Surface` when `paper` is injected) while the toaster keeps the stacking, swiping and timing. It is handed the card's own layout style (a row with its padding, corner radius and side margins, with `toastStyle` merged in and `backgroundColor` when that prop is set), the toast's icon and text as `children`, and the `toast` itself (to vary the card by level, say). A blur surface, for example:
+
+```tsx
+import { BlurView } from 'expo-blur'
+import type { ToastCardProps } from '@rific/toaster'
+
+const BlurCard = ({ children, style }: ToastCardProps) => (
+  <BlurView intensity={40} style={[style, { overflow: 'hidden' }]} tint='dark'>
+    {children}
+  </BlurView>
+)
+
+<Toaster Card={BlurCard} labelStyle={{ fontFamily: 'Inter-Medium' }} textColor='#fff' />
 ```
 
 ### Captions and images
@@ -240,8 +269,8 @@ Swipe-to-dismiss is measured in the toast's **own** coordinate space, so on **iO
 rotated or otherwise transformed - for example an app that stays portrait-locked at the OS level and fakes landscape by turning a `View`.
 There is no prop for it and nothing to configure: the pan's distance is the change in the pointer's position *relative to the toast's own
 view* (which the gesture runtime computes through every ancestor transform), not the window-space `translationX`, and the dismiss
-threshold is 40% of the toast's own laid-out width. It is a single-finger gesture, and the distance is measured from where the pan
-activates.
+thresholds are 30% of the toast's own laid-out width and half its height. A flick's speed is sampled from those same local positions, not
+the gesture's window-space velocity. It is a single-finger gesture, and the distance is measured from where the pan activates.
 
 On **web** this does not hold: the gesture runtime derives its coordinates from the element's axis-aligned bounding box, so a rotated
 ancestor is not accounted for there - don't rotate the toaster's ancestors on web.
