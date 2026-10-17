@@ -2,6 +2,8 @@
 
 Stacking, animated toast notifications for React Native. Toasts stack on top of each other, auto-dismiss with a configurable timer, and swipe away sideways or off the edge they sit on. A hidden-count badge appears when the stack exceeds your limit.
 
+**[Live demo](https://rific.jaydeaton.com/demos/toaster)**
+
 ## Features
 
 - Stacking toasts from the top or bottom edge with animated entry, exit, and reflow

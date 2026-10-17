@@ -20,9 +20,12 @@ export const SWIPE_EDGE_RESISTANCE = 0.2
 /** A dismissed toast flies out to this multiple of the clearance length, in the direction it was swiped. */
 export const SWIPE_EXIT_FACTOR = 1.5
 
-export function swipeShouldDismiss(distance: number, length: number, velocity = 0, fraction = SWIPE_DISMISS_FRACTION): boolean {
+// `fraction`'s default is applied in the body, never the parameter list: a worklet reads module constants from its closure inside its body, so
+// a default parameter naming one runs before they exist and throws on the UI thread. That crashed every release build on a sideways swipe (the
+// one call that leaves `fraction` out) in 0.8.0-0.8.2. See worklets.test.ts.
+export function swipeShouldDismiss(distance: number, length: number, velocity = 0, fraction?: number): boolean {
   'worklet'
-  if (Math.abs(distance) > length * fraction) return true
+  if (Math.abs(distance) > length * (fraction ?? SWIPE_DISMISS_FRACTION)) return true
   return Math.abs(distance) >= SWIPE_FLING_MIN_DISTANCE && Math.abs(velocity) >= SWIPE_FLING_VELOCITY && Math.sign(velocity) === Math.sign(distance)
 }
 
