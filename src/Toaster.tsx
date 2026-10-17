@@ -1,11 +1,12 @@
 import { type ComponentType, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dimensions, Image, type LayoutChangeEvent, Pressable, type StyleProp, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import Animated, { Extrapolation, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp, interpolate, LinearTransition, type SharedValue, useAnimatedKeyboard, useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
+import Animated, { Extrapolation, interpolate, LinearTransition, type SharedValue, useAnimatedKeyboard, useAnimatedReaction, useAnimatedStyle, useDerivedValue, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { scheduleOnRN } from 'react-native-worklets'
 
 import { HistoryModal } from './HistoryModal'
+import { exitsOutward, toastEntering, toastExiting } from './motion'
 import { computeStackOffsets, DEFAULT_ITEM_HEIGHT } from './stackLayout'
 import { releaseVelocity, sampleVelocity, SWIPE_DISMISS_FRACTION, SWIPE_EDGE_DISMISS_FRACTION, swipeEdgeDrag, swipeExitTarget, swipeIsVertical, swipeShouldDismiss } from './swipe'
 import type { Toast, ToastLevel } from './Toast'
@@ -66,13 +67,14 @@ type ToastItemProps = {
   captionStyle?: StyleProp<TextStyle>
   duration: number
   Icon?: ComponentType<IconComponentProps>
-  isTop: boolean
   labelStyle?: StyleProp<TextStyle>
   levelColor: string
   levelIcon?: string
   offset: number
   onDismiss: (id: string) => void
   onMeasure: (id: string, height: number) => void
+  /** Leaves away from the stack's edge instead of toward it (see motion.ts's exitsOutward). */
+  outwardExit: boolean
   paper: PaperModule | null
   position: 'bottom' | 'top'
   surfaceElevation?: 0 | 1 | 2 | 3 | 4 | 5
@@ -180,7 +182,7 @@ function buildSwipeGesture(swipe: SwipeState, swipeDismissed: SharedValue<boolea
     })
 }
 
-const ToastItem = memo(({ backgroundColor, Card, captionStyle, duration, Icon, isTop, labelStyle, levelColor, levelIcon, offset, onDismiss, onMeasure, paper, position, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
+const ToastItem = memo(({ backgroundColor, Card, captionStyle, duration, Icon, labelStyle, levelColor, levelIcon, offset, onDismiss, onMeasure, outwardExit, paper, position, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
   const swipe = useSwipeState()
   const { translateX, translateY } = swipe
   // The toast's own size: the reference for the dismiss distances and the exit target. It starts at the window's width and the stack's default
@@ -250,8 +252,8 @@ const ToastItem = memo(({ backgroundColor, Card, captionStyle, duration, Icon, i
     transform: [{ translateX: translateX.value }, { translateY: translateY.value }]
   }))
 
-  const entering = position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)
-  const exiting = position === 'bottom' ? (isTop ? FadeOutUp.duration(160) : FadeOutDown.duration(160)) : isTop ? FadeOutDown.duration(160) : FadeOutUp.duration(160)
+  const entering = toastEntering(position)
+  const exiting = toastExiting(position, outwardExit)
   const marginStyle = position === 'bottom' ? { bottom: 0, marginBottom: offset } : { marginTop: offset, top: 0 }
 
   // A toast's own icon/color (see Toast.ts's ToastOverrides) wins over the level's shared default -
@@ -417,13 +419,13 @@ export const Toaster = ({ backgroundColor, Card, captionStyle, clearButton, dura
   const stack = (
     <Animated.View pointerEvents='box-none' style={[styles.stack, stackStyle, wrapperStyle]}>
       <Animated.View layout={LinearTransition.duration(220)} style={[styles.stackControls, position === 'bottom' ? { bottom: totalStackHeight + 4 } : { top: totalStackHeight + 4 }]}>
-        <Animated.View entering={position === 'bottom' ? FadeInUp.duration(220) : FadeInDown.duration(220)} exiting={position === 'bottom' ? FadeOutDown.duration(160) : FadeOutUp.duration(160)} style={styles.stackControlsRow}>
+        <Animated.View entering={toastEntering(position)} exiting={toastExiting(position, false)} style={styles.stackControlsRow}>
           <View style={styles.stackControlsLeft}>{resolvedHistoryButton}</View>
           <View style={styles.stackControlsRight}>{resolvedClearButton}</View>
         </Animated.View>
       </Animated.View>
       {visibleToasts.map((toast, index) => (
-        <ToastItem key={toast.id} backgroundColor={backgroundColor} Card={Card} captionStyle={captionStyle} duration={duration} Icon={Icon} isTop={index === visibleToasts.length - 1} labelStyle={labelStyle} levelColor={mergedColors[toast.level]} levelIcon={effectiveLevelIcons?.[toast.level]} offset={offsets[index]} onDismiss={dismiss} onMeasure={handleMeasure} paper={paper} position={position} surfaceElevation={surfaceElevation} textColor={textColor} theme={resolvedTheme} toast={toast} toastStyle={toastStyle} />
+        <ToastItem key={toast.id} backgroundColor={backgroundColor} Card={Card} captionStyle={captionStyle} duration={duration} Icon={Icon} labelStyle={labelStyle} levelColor={mergedColors[toast.level]} levelIcon={effectiveLevelIcons?.[toast.level]} offset={offsets[index]} onDismiss={dismiss} onMeasure={handleMeasure} outwardExit={exitsOutward(index, visibleToasts.length)} paper={paper} position={position} surfaceElevation={surfaceElevation} textColor={textColor} theme={resolvedTheme} toast={toast} toastStyle={toastStyle} />
       ))}
     </Animated.View>
   )

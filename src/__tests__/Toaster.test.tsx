@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
+import { FadeInDown, FadeInUp, FadeOutDown, FadeOutUp } from 'react-native-reanimated'
 
 import { lastPanCallbacks, lastPanConfig, panInstanceCount } from '../__mocks__/react-native-gesture-handler'
-import { lastOnLayout } from '../__mocks__/react-native-reanimated'
+import { lastOnLayout, lastToastMotion } from '../__mocks__/react-native-reanimated'
 import { LEVEL_COLORS } from '../Toast'
 import { type HapticsModule, type PaperModule, ToastProvider, type ToastProviderProps } from '../ToastContext'
 import { Toaster } from '../Toaster'
@@ -59,6 +60,7 @@ beforeEach(() => {
   lastPanCallbacks.onStart = undefined
   lastPanConfig.maxPointers = undefined
   lastOnLayout.current = undefined
+  lastToastMotion.current = undefined
   lastPanCallbacks.onEnd = undefined
   lastPanCallbacks.onUpdate = undefined
 })
@@ -381,6 +383,20 @@ describe('swipe toward the edge', () => {
   it('locks the axis at activation: a pan that started sideways ignores a later vertical move, and the other way round', () => {
     expect(pan([50, 0], [62, 2], [62, 300])).toBe(false) // sideways: moved 0 along x
     expect(pan([50, 0], [52, 12], [300, 12])).toBe(false) // vertical: moved 0 along y
+  })
+})
+
+describe('enter and exit', () => {
+  it('a lone toast in a top stack comes down into place from above and goes back up', () => {
+    const { getApi } = renderToaster(3, {}, { position: 'top' })
+    act(() => getApi().info('Hello'))
+    expect(lastToastMotion.current).toEqual({ entering: FadeInUp, exiting: FadeOutUp })
+  })
+
+  it('a lone toast in a bottom stack rises into place from below and goes back down', () => {
+    const { getApi } = renderToaster(3)
+    act(() => getApi().info('Hello'))
+    expect(lastToastMotion.current).toEqual({ entering: FadeInDown, exiting: FadeOutDown })
   })
 })
 

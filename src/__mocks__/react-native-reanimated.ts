@@ -5,10 +5,15 @@ const identity = (x: any) => x
 // Test-only instrumentation: the `onLayout` handler most recently passed to an Animated.View (the toast wrapper is the only one that has one), so a test can
 // deliver a layout event of a given width.
 export const lastOnLayout: { current?: (e: any) => void } = {}
+// Likewise the enter/exit animations most recently handed to that wrapper.
+export const lastToastMotion: { current?: { entering: unknown; exiting: unknown } } = {}
 
 const Animated = {
-  View: ({ children, onLayout }: { children?: React.ReactNode; onLayout?: (e: any) => void }) => {
-    if (onLayout) lastOnLayout.current = onLayout
+  View: ({ children, entering, exiting, onLayout }: { children?: React.ReactNode; entering?: unknown; exiting?: unknown; onLayout?: (e: any) => void }) => {
+    if (onLayout) {
+      lastOnLayout.current = onLayout
+      lastToastMotion.current = { entering, exiting }
+    }
     return children ?? null
   }
 }
