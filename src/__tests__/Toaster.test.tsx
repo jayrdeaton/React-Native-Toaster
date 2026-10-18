@@ -27,12 +27,16 @@ const renderToaster = (limit = 3, providerProps: Partial<Omit<ToastProviderProps
 
 // A swipe as the gesture runtime reports it: the pointer goes down and the pan activates at local x = `from`, then the pointer is at local x = `to`.
 // `x` is relative to the view the handler is attached to (the toast's stationary wrapper); `translationX/Y` are in WINDOW space and are deliberately
-// passed as `extra` so a test can say what they were. Every call happens in the same millisecond, so the pointer has no speed: only the distance counts.
+// passed as `extra` so a test can say what they were. Every call happens at the same instant, so the pointer has no speed: only the distance counts.
 const swipe = (from: number, to: number, extra: { translationX?: number; translationY?: number } = {}) => {
+  // The clock is held still, not just assumed to be: if a millisecond ticked over between the calls (a slow CI runner), the pointer would have a speed
+  // of thousands of points per second and a short drag would count as a flick and dismiss.
+  const now = jest.spyOn(Date, 'now').mockReturnValue(10_000)
   lastPanCallbacks.onBegin?.({ x: from, y: 0 })
   lastPanCallbacks.onStart?.({ x: from, y: 0 })
   lastPanCallbacks.onUpdate?.({ x: to, y: 0, ...extra })
   lastPanCallbacks.onEnd?.({ x: to, y: 0, ...extra })
+  now.mockRestore()
 }
 
 // A pan sampled over time: `points` are [ms after activation, local x, local y], after a touch-down at `down` and activation at the first point (the clock
