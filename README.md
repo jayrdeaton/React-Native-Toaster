@@ -27,7 +27,7 @@ npm install @rific/toaster
 ### Required peer dependencies
 
 ```sh
-npm install react-native-reanimated react-native-gesture-handler react-native-worklets react-native-safe-area-context
+npm install @rific/core react-native-reanimated react-native-gesture-handler react-native-worklets react-native-safe-area-context
 ```
 
 Requires `react-native-reanimated` **v4 or newer** (the toast stack uses `react-native-worklets`, which ships alongside Reanimated 4). Follow the setup guides for [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started) and [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation). Your app root also needs `GestureHandlerRootView` from gesture-handler (typically already present if you use React Navigation), and a `SafeAreaProvider` from `react-native-safe-area-context` somewhere above `<Toaster />` (also typically already present, React Navigation and Expo Router both set this up for you).

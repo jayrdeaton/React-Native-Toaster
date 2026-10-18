@@ -74,7 +74,6 @@ export const withTiming = (toValue: any, _config?: any, callback?: any) => {
   return toValue
 }
 export const withSpring = identity
-export const runOnJS = (fn: any) => fn
 export const interpolate = (_value: any, _input: any, output: any) => output[0]
 export const Extrapolation = { CLAMP: 'clamp' }
 export const LinearTransition = { duration: () => LinearTransition }
