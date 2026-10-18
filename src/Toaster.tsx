@@ -1,3 +1,4 @@
+import { callWorkletCallback, useWorkletCallback } from '@rific/core'
 import { type ComponentType, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dimensions, Image, type LayoutChangeEvent, Pressable, type StyleProp, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -220,10 +221,14 @@ const ToastItem = memo(({ backgroundColor, Card, captionStyle, duration, Icon, l
   // ("react-native" condition -> dist/index.mjs) and https://github.com/software-mansion/react-native-reanimated/discussions/8811
   const swipeDismissed = useSharedValue(false)
 
+  // The reaction below is held by this component, so it must not hand react-native-worklets one of the
+  // component's own callbacks (the native side keeps it as a GC root for as long as the worklet lives,
+  // which pinned every toast that ever showed). It calls the module-level callWorkletCallback by key.
+  const dismissKey = useWorkletCallback(handleDismiss)
   useAnimatedReaction(
     () => swipeDismissed.value,
     (dismissed, wasDismissed) => {
-      if (dismissed && !wasDismissed) scheduleOnRN(handleDismiss)
+      if (dismissed && !wasDismissed) scheduleOnRN(callWorkletCallback, dismissKey)
     }
   )
 
