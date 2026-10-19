@@ -2,11 +2,11 @@
 
 ## Move off gesture-handler's deprecated `Gesture` builder
 
-Shipped 2026-10-16 with the peer range raised to `react-native-gesture-handler >=2.0.0 <4.0.0` so Expo SDK 58 apps (gesture-handler 3.3) can use it, but the code still uses the builder API (`Gesture.Pan()` in the swipe-to-dismiss handling), which 3.x marks deprecated and says it will remove. Move to the 3.x hooks (`usePanGesture`) with `GestureDetector`; that makes 3.0 the peer floor, so release it as a minor once every consumer is on SDK 58.
+Moved to `@rific/gestures` with the swipe (2026-10-18): its `SwipeToDismiss` builds the pan with `Gesture.Pan()`, which gesture-handler 3.x marks deprecated and says it will remove. The move to the 3.x hooks (`usePanGesture`) happens there; nothing here uses gesture-handler directly any more. The peer range stays `react-native-gesture-handler >=2.0.0 <4.0.0` until that package raises its own.
 
 ## Check gestures on a device under gesture-handler 3
 
-The tests mock `react-native-gesture-handler` (`src/__mocks__/react-native-gesture-handler.ts`), so they passed against 3.3 without running it. Before relying on it, try swiping a toast away (up and sideways) and tapping one in an SDK 58 dev build.
+The tests mock `@rific/gestures` whole, so they never run gesture-handler. Before relying on it, try swiping a toast away (up and sideways) and tapping one in an SDK 58 dev build, now through `@rific/gestures`.
 
 ## React Native 0.88 strict types
 

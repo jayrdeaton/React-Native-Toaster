@@ -27,10 +27,10 @@ npm install @rific/toaster
 ### Required peer dependencies
 
 ```sh
-npm install @rific/core react-native-reanimated react-native-gesture-handler react-native-worklets react-native-safe-area-context
+npm install @rific/core @rific/gestures react-native-reanimated react-native-gesture-handler react-native-worklets react-native-safe-area-context
 ```
 
-Requires `react-native-reanimated` **v4 or newer** (the toast stack uses `react-native-worklets`, which ships alongside Reanimated 4). Follow the setup guides for [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started) and [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation). Your app root also needs `GestureHandlerRootView` from gesture-handler (typically already present if you use React Navigation), and a `SafeAreaProvider` from `react-native-safe-area-context` somewhere above `<Toaster />` (also typically already present, React Navigation and Expo Router both set this up for you).
+Requires `react-native-reanimated` **v4 or newer**, with `react-native-worklets`, which ships alongside Reanimated 4. The swipe is [`@rific/gestures`](https://github.com/jayrdeaton/react-native-gestures)' `SwipeToDismiss`, which needs gesture-handler, Reanimated, Worklets and `@rific/core` too. Follow the setup guides for [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started) and [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation). Your app root also needs `GestureHandlerRootView` from gesture-handler (typically already present if you use React Navigation), and a `SafeAreaProvider` from `react-native-safe-area-context` somewhere above `<Toaster />` (also typically already present, React Navigation and Expo Router both set this up for you).
 
 ### Optional peer dependencies
 
@@ -206,6 +206,8 @@ A toast is dismissed by either of two swipes, locked to one axis when the pan st
 
 A quick flick (about 500pt/s, moving the way it was swiped, at least 12pt) dismisses it either way however short it was. A pointer held still before it lifts isn't a flick. Anything less springs back.
 
+The swipe is `SwipeToDismiss` from `@rific/gestures`, the same one other apps use to swipe their own views away, so every swipe feels alike.
+
 ### Custom card
 
 `Card` replaces the card each toast is drawn on (a plain `View`, or Paper's `Surface` when `paper` is injected) while the toaster keeps the stacking, swiping and timing. It is handed the card's own layout style (a row with its padding, corner radius and side margins, with `toastStyle` merged in and `backgroundColor` when that prop is set), the toast's icon and text as `children`, and the `toast` itself (to vary the card by level, say). A blur surface, for example:
@@ -267,7 +269,7 @@ The `keyboardAware` prop has no effect when `position='top'` since the keyboard 
 
 ### Inside a turned or transformed frame
 
-Swipe-to-dismiss is measured in the toast's **own** coordinate space, so on **iOS and Android** it works unchanged inside a frame that is
+Swipe-to-dismiss (`@rific/gestures`' `SwipeToDismiss`) is measured in the toast's **own** coordinate space, so on **iOS and Android** it works unchanged inside a frame that is
 rotated or otherwise transformed - for example an app that stays portrait-locked at the OS level and fakes landscape by turning a `View`.
 There is no prop for it and nothing to configure: the pan's distance is the change in the pointer's position *relative to the toast's own
 view* (which the gesture runtime computes through every ancestor transform), not the window-space `translationX`, and the dismiss
