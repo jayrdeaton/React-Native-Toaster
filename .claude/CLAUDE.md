@@ -68,7 +68,7 @@ Enforced by ESLint + Prettier - run the linter before finishing any task.
 ### Peer dependencies
 
 - `react` >=19, `react-native` >=0.76 - required
-- `@rific/gestures` >=0.1.0 - required. Swipe-to-dismiss (`SwipeToDismiss`, see below)
+- `@rific/gestures` >=0.1.2 - required. Swipe-to-dismiss (`SwipeToDismiss`, see below). Not 0.1.0 or 0.1.1: on the web their built file renamed `useAnimatedStyle` to `useAnimatedStyle2`, so the Worklets plugin skipped its callback and every toast threw (fixed in 0.1.2 with explicit `'worklet'` directives)
 - `react-native-reanimated` ^4 - required. Animations (entering/exiting/layout transitions, keyboard-aware positioning; `@rific/gestures` animates the swipe with it too)
 - `react-native-gesture-handler` >=2 <4 - required by `@rific/gestures` (its `Gesture.Pan()`)
 - `react-native-worklets` >=0.5.0 - required (developed against 0.13, the pair Reanimated 4.7 needs). Ships alongside Reanimated 4; `@rific/gestures` uses it to signal the swipe's end back to the JS thread
