@@ -10,10 +10,13 @@ export const LEVEL_COLORS: Record<ToastLevel, string> = {
 // Per-toast visual override, for a caller whose icon/color identity varies toast-to-toast within
 // the same level (e.g. a bronze/silver/gold achievement badge) rather than following the fixed
 // per-level palette every other toast of that level shares - see ToastItem's effectiveIcon/
-// effectiveColor, which fall back to the level's own icon/color when either is omitted.
+// effectiveColor, which fall back to the level's own icon/color when either is omitted. `stack`
+// sends the toast to the <Toaster stack> of that name instead of the app's main one (see
+// Toaster.tsx's `stack` prop): e.g. a second Toaster turned to face a player across the table.
 export type ToastOverrides = {
   color?: string
   icon?: string
+  stack?: string
 }
 
 let _seq = 0
@@ -32,6 +35,8 @@ export class Toast {
   id: string
   image: string | null
   level: ToastLevel
+  /** The <Toaster stack> that shows it, null for the main Toaster (one with no `stack`). */
+  stack: string | null
   title: string | null
 
   constructor(data?: Partial<Toast>) {
@@ -42,6 +47,7 @@ export class Toast {
     this.id = data?.id ?? defaultGenerateId()
     this.image = data?.image ?? null
     this.level = data?.level ?? 'info'
+    this.stack = data?.stack ?? null
     this.title = data?.title ?? null
   }
 }

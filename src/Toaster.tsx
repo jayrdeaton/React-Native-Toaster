@@ -52,6 +52,17 @@ export type ToasterProps = {
   limit?: number
   onHistoryPress?: () => void
   position?: 'bottom' | 'top'
+  /** Lays the stack inside a frame of the host's own (inside the Portal when `paper` is injected, so the frame is drawn over the screen the
+   * way the stack is), e.g. one turned to face a player across the table. The stack is absolutely placed against the frame's edges, using
+   * the safe-area insets it reads there, so a turned frame that provides insets remapped onto its own edges lands it on the right one. Turn
+   * `keyboardAware` off in a turned frame: the keyboard rises from the screen's own bottom edge, not the frame's. */
+  renderFrame?: (stack: ReactNode) => ReactNode
+  /** Shows only the toasts sent to this stack (`useToast`'s `overrides.stack`), for a second Toaster beside the app's main one: e.g. one
+   * per player at a face-to-face table. Left out, the Toaster shows every toast sent to no stack, which is every toast unless one is
+   * targeted. A stack's toasts wait while no Toaster for it is mounted, the way toasts past `limit` do (a toast's time runs from when it
+   * was sent, so one older than `duration` goes the moment it would show). A Toaster with a `stack` leaves the history to the main one: it
+   * draws no history modal unless `historyModal` is passed, and its clear control clears only its own stack. */
+  stack?: string
   surfaceElevation?: 0 | 1 | 2 | 3 | 4 | 5
   textColor?: string
   theme?: PaperTheme
@@ -153,9 +164,11 @@ const ToastItem = memo(({ backgroundColor, Card, captionStyle, duration, Icon, l
 })
 ToastItem.displayName = 'ToastItem'
 
-export const Toaster = ({ backgroundColor, Card, captionStyle, clearButton, duration = 7000, historyButton, historyModal, Icon, keyboardAware = true, keyboardOffset = 0, labelStyle, levelColors, levelIcons, limit = 3, onHistoryPress, position = 'bottom', surfaceElevation, textColor, theme, toastStyle, wrapperStyle }: ToasterProps) => {
+export const Toaster = ({ backgroundColor, Card, captionStyle, clearButton, duration = 7000, historyButton, historyModal, Icon, keyboardAware = true, keyboardOffset = 0, labelStyle, levelColors, levelIcons, limit = 3, onHistoryPress, position = 'bottom', renderFrame, stack: stackName, surfaceElevation, textColor, theme, toastStyle, wrapperStyle }: ToasterProps) => {
   const { clear, dismiss, history, historyVisible, openHistory, toasts } = useToast()
-  const { haptics, paper, paperTheme } = useToastContext()
+  const { dispatch, haptics, paper, paperTheme } = useToastContext()
+  // The stack this Toaster shows: its own name, or null (the main Toaster's, which every toast sent to no stack lands in).
+  const ownStack = stackName ?? null
   const resolvedTheme = theme ?? paperTheme ?? undefined
   const insets = useSafeAreaInsets()
   const knownIdsRef = useRef(new Set<string>())
@@ -187,10 +200,11 @@ export const Toaster = ({ backgroundColor, Card, captionStyle, clearButton, dura
     }
   }, [clear, haptics, onHistoryPress, openHistory])
 
+  // Clears what this Toaster shows, not another stack's toasts.
   const handleClearPress = useCallback(() => {
     if (haptics) void haptics.impactAsync(haptics.ImpactFeedbackStyle.Light)
-    clear()
-  }, [clear, haptics])
+    dispatch({ stack: ownStack, type: 'CLEAR' })
+  }, [dispatch, haptics, ownStack])
 
   const handleMeasure = useCallback((id: string, height: number) => {
     setHeights((prev) => (prev[id] === height ? prev : { ...prev, [id]: height }))
@@ -201,7 +215,15 @@ export const Toaster = ({ backgroundColor, Card, captionStyle, clearButton, dura
     top: position === 'top' ? insets.top : undefined
   }))
 
-  const visibleToasts = useMemo(() => toasts.slice(-limit).reverse(), [limit, toasts])
+  // Filtered before the limit, so another stack's toasts never take this one's places.
+  const visibleToasts = useMemo(
+    () =>
+      toasts
+        .filter((t) => t.stack === ownStack)
+        .slice(-limit)
+        .reverse(),
+    [limit, ownStack, toasts]
+  )
 
   const { offsets, totalHeight: totalStackHeight } = useMemo(
     () =>
@@ -262,7 +284,9 @@ export const Toaster = ({ backgroundColor, Card, captionStyle, clearButton, dura
   )
   const resolvedHistoryButton = historyButton === undefined ? defaultHistoryButton : historyButton
   const resolvedClearButton = clearButton === undefined ? defaultClearButton : clearButton
-  const resolvedHistoryModal = historyModal === undefined ? <HistoryModal backgroundColor={modalBg} levelColors={mergedColors} textColor={modalText} /> : historyModal
+  // One history for the app, drawn by the main Toaster: a stack's own Toaster draws none by default, or opening it would open one per Toaster.
+  const defaultHistoryModal = ownStack === null ? <HistoryModal backgroundColor={modalBg} levelColors={mergedColors} textColor={modalText} /> : null
+  const resolvedHistoryModal = historyModal === undefined ? defaultHistoryModal : historyModal
 
   const stack = (
     <Animated.View pointerEvents='box-none' style={[styles.stack, stackStyle, wrapperStyle]}>
@@ -278,9 +302,11 @@ export const Toaster = ({ backgroundColor, Card, captionStyle, clearButton, dura
     </Animated.View>
   )
 
+  const framed = renderFrame ? renderFrame(stack) : stack
+
   return (
     <>
-      {visibleToasts.length > 0 && !historyVisible ? paper ? <paper.Portal>{stack}</paper.Portal> : stack : null}
+      {visibleToasts.length > 0 && !historyVisible ? paper ? <paper.Portal>{framed}</paper.Portal> : framed : null}
       {resolvedHistoryModal}
     </>
   )

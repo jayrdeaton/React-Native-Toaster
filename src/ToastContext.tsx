@@ -41,7 +41,8 @@ type ToastState = {
   toasts: Toast[]
 }
 
-type ToastAction = { maxHistory: number; toast: Toast; type: 'ADD' } | { id: string; type: 'REMOVE' } | { type: 'CLEAR' } | { type: 'CLEAR_HISTORY' } | { type: 'OPEN_HISTORY' } | { type: 'CLOSE_HISTORY' }
+// CLEAR's `stack` limits it to one Toaster's toasts (null being the main one's); left out, it clears every toast.
+type ToastAction = { maxHistory: number; toast: Toast; type: 'ADD' } | { id: string; type: 'REMOVE' } | { stack?: string | null; type: 'CLEAR' } | { type: 'CLEAR_HISTORY' } | { type: 'OPEN_HISTORY' } | { type: 'CLOSE_HISTORY' }
 
 function reducer(state: ToastState, action: ToastAction): ToastState {
   switch (action.type) {
@@ -54,7 +55,7 @@ function reducer(state: ToastState, action: ToastAction): ToastState {
     case 'REMOVE':
       return { ...state, toasts: state.toasts.filter((t) => t.id !== action.id) }
     case 'CLEAR':
-      return { ...state, toasts: [] }
+      return { ...state, toasts: action.stack === undefined ? [] : state.toasts.filter((t) => t.stack !== action.stack) }
     case 'CLEAR_HISTORY':
       return { ...state, history: [] }
     case 'OPEN_HISTORY':

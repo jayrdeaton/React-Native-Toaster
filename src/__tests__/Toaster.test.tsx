@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
 import { FadeInDown, FadeInUp, FadeOutDown, FadeOutUp } from 'react-native-reanimated'
 
@@ -152,6 +152,129 @@ describe('custom card and text styles', () => {
       )
     expect(styleOf('Title')).toMatchObject({ color: '#fff', fontFamily: 'Label', fontSize: 14 })
     expect(styleOf('Caption')).toMatchObject({ color: '#123456', fontFamily: 'Caption', fontSize: 12 })
+  })
+})
+
+// A Toaster with a `stack` shows only the toasts sent there (`overrides.stack`), e.g. one per player at a face-to-face table, each laid in a
+// frame turned to face its seat (`renderFrame`); the main Toaster (no `stack`) keeps every other toast, which is every toast an app sent
+// before stacks existed. Each Toaster's stack is laid in a test-id'd frame here, since the mocked Views draw no element of their own.
+describe('stacks', () => {
+  const stackPaper: PaperModule = {
+    Chip: ({ children, onPress }) => (
+      <button onClick={onPress} type='button'>
+        {children}
+      </button>
+    ),
+    Divider: () => <hr />,
+    Icon: () => null,
+    IconButton: () => null,
+    Portal: ({ children }) => <div data-testid='portal'>{children}</div>,
+    Surface: ({ children }) => <>{children}</>,
+    useTheme: () => ({ colors: { background: '#fff', onSurface: '#000', surface: '#eee' } })
+  }
+  const framed = (name: string) => (stack: ReactNode) => <div data-testid={`frame-${name}`}>{stack}</div>
+  const main: ComponentProps<typeof Toaster> = { renderFrame: framed('main') }
+  const seatTwo: ComponentProps<typeof Toaster> = { renderFrame: framed('seat-2'), stack: 'seat-2' }
+
+  const renderToasters = (toasters: ComponentProps<typeof Toaster>[], providerProps: Partial<Omit<ToastProviderProps, 'children'>> = {}) => {
+    let api: ToastApi | null = null
+    const Harness = ({ list }: { list: ComponentProps<typeof Toaster>[] }) => {
+      api = useToast()
+      return (
+        <>
+          {list.map((props, i) => (
+            <Toaster key={props.stack ?? `main-${i}`} {...props} />
+          ))}
+        </>
+      )
+    }
+    const { container, rerender } = render(
+      <ToastProvider {...providerProps}>
+        <Harness list={toasters} />
+      </ToastProvider>
+    )
+    return {
+      container,
+      getApi: () => api as ToastApi,
+      setToasters: (list: ComponentProps<typeof Toaster>[]) =>
+        rerender(
+          <ToastProvider {...providerProps}>
+            <Harness list={list} />
+          </ToastProvider>
+        )
+    }
+  }
+  const titlesIn = (frame: string) =>
+    within(screen.getByTestId(`frame-${frame}`))
+      .getAllByTestId('swipe-to-dismiss')
+      .map((el) => el.textContent)
+
+  it('shows each toast on the Toaster for its stack, and every untargeted one on the main Toaster', () => {
+    const { getApi } = renderToasters([main, seatTwo])
+    act(() => {
+      getApi().error('Update failed')
+      getApi().success('First Goal', undefined, undefined, { stack: 'seat-2' })
+    })
+
+    expect(titlesIn('main')).toEqual(['Update failed'])
+    expect(titlesIn('seat-2')).toEqual(['First Goal'])
+  })
+
+  it("counts each Toaster's limit against its own stack", () => {
+    const { getApi } = renderToasters([
+      { ...main, limit: 2 },
+      { ...seatTwo, limit: 2 }
+    ])
+    act(() => {
+      getApi().info('Main')
+      for (const title of ['One', 'Two', 'Three']) getApi().success(title, undefined, undefined, { stack: 'seat-2' })
+    })
+
+    expect(titlesIn('main')).toEqual(['Main'])
+    expect(titlesIn('seat-2')).toEqual(['Three', 'Two'])
+  })
+
+  it("holds a stack's toasts until a Toaster for it mounts", () => {
+    const { container, getApi, setToasters } = renderToasters([main])
+    act(() => getApi().success('First Goal', undefined, undefined, { stack: 'seat-2' }))
+    expect(container.textContent).not.toContain('First Goal')
+
+    setToasters([main, seatTwo])
+    expect(titlesIn('seat-2')).toEqual(['First Goal'])
+  })
+
+  it('lays the stack in renderFrame, inside the Portal when paper is injected', () => {
+    const { getApi } = renderToasters([seatTwo], { paper: stackPaper })
+    act(() => getApi().success('First Goal', undefined, undefined, { stack: 'seat-2' }))
+
+    const frame = within(screen.getByTestId('portal')).getByTestId('frame-seat-2')
+    expect(
+      within(frame)
+        .getAllByTestId('swipe-to-dismiss')
+        .map((el) => el.textContent)
+    ).toEqual(['First Goal'])
+  })
+
+  it('clears only its own stack from its clear control', () => {
+    const { getApi } = renderToasters([main, seatTwo], { paper: stackPaper })
+    act(() => {
+      getApi().info('Main')
+      getApi().success('First Goal', undefined, undefined, { stack: 'seat-2' })
+    })
+
+    act(() => {
+      fireEvent.click(within(screen.getByTestId('frame-seat-2')).getByText('clear'))
+    })
+    expect(getApi().toasts.map((t) => t.title)).toEqual(['Main'])
+  })
+
+  it('leaves the history to the main Toaster: a stack draws no history modal unless one is passed', () => {
+    const { container, getApi } = renderToasters([{ ...main, historyModal: null }, seatTwo], { paper: stackPaper })
+    act(() => getApi().success('First Goal', undefined, undefined, { stack: 'seat-2' }))
+    act(() => getApi().openHistory())
+
+    // The mocked Modal draws its content whether open or not, so a history modal anywhere would list the toast.
+    expect(container.textContent).not.toContain('First Goal')
   })
 })
 

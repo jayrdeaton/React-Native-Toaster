@@ -116,7 +116,7 @@ const {
   info,           // (title, caption?, image?, overrides?) => void
   success,        // (title, caption?, image?, overrides?) => void
   dismiss,        // (id) => void
-  clear,          // () => void, removes all visible toasts
+  clear,          // () => void, removes every toast, on every stack
   clearHistory,   // () => void, clears the history log
   openHistory,    // () => void, opens the history modal
   closeHistory,   // () => void, closes the history modal
@@ -176,6 +176,8 @@ useUpdateErrorToast(title?: string): (message: string) => void
 | `labelStyle` | `StyleProp<TextStyle>` | - | Merged over the title's built-in style (14/20 in the text color), e.g. to set your app's font. |
 | `captionStyle` | `StyleProp<TextStyle>` | - | Merged over the caption's built-in style (12/16, the text color at 75% opacity). |
 | `wrapperStyle` | `ViewStyle` | - | Style applied to the outer stack container. |
+| `stack` | `string` | - | Shows only the toasts sent to this stack, for a second Toaster beside the main one. See [A Toaster per player](#a-toaster-per-player). |
+| `renderFrame` | `(stack: ReactNode) => ReactNode` | - | Lays the stack inside a frame of your own, inside the Portal when `paper` is injected, e.g. one turned to face a player. See [A Toaster per player](#a-toaster-per-player). |
 
 `historyButton`/`clearButton`/`historyModal` are three-state slots: omit the prop for the built-in control, pass `null` to hide it, or pass your own node to replace it. A custom node is responsible for its own press handling and haptics - pull `clear`/`openHistory` off `useToast()`.
 
@@ -250,7 +252,7 @@ Passing an `image` URI renders it in a small square in place of the level icon.
 
 ### Per-toast icon/color overrides
 
-`levelColors`/`levelIcons` style every toast of a given level the same way. For a toast whose icon and color are its own identity rather than its level's - a badge, an achievement, a category tag - pass a fourth `overrides` argument to override just that one toast, falling back to the level's own icon/color for whichever half you omit:
+`levelColors`/`levelIcons` style every toast of a given level the same way. For a toast whose icon and color are its own identity rather than its level's - a badge, an achievement, a category tag - pass a fourth `overrides` argument to override just that one toast, falling back to the level's own icon/color for whichever half you omit (its third field, `stack`, sends the toast to another Toaster: see [A Toaster per player](#a-toaster-per-player)):
 
 ```tsx
 success('Flawless Victory', undefined, undefined, { color: '#FFD54F', icon: 'shield-star' })
@@ -282,6 +284,29 @@ ancestor is not accounted for there - don't rotate the toaster's ancestors on we
 One thing stays tied to the physical screen: the software keyboard is always at the *physical* bottom, which is not a turned frame's
 bottom edge, so `keyboardAware` lifts by the wrong edge inside a turned frame. If you fake rotation, revert the frame to upright while the
 keyboard is up - then the default is correct again.
+
+### A Toaster per player
+
+A game played face to face, two players across a phone lying on the table, can show each player their own toasts the right way up. Send a toast to a named stack with the `stack` override, and mount a second `<Toaster stack>` for it, laid in a frame turned to face that seat:
+
+```tsx
+// Seat 2 sits across the table from seat 1, so its toasts are turned 180 degrees.
+<Toaster
+  clearButton={null}
+  historyButton={null}
+  keyboardAware={false}
+  renderFrame={(stack) => <TurnedFrame rotation={180}>{stack}</TurnedFrame>}
+  stack='seat-2'
+/>
+
+success('First Goal', 'Bob unlocked', undefined, { stack: 'seat-2' })
+```
+
+- **The main Toaster** (one with no `stack`) shows every toast sent to no stack, which is every toast unless one is targeted, so an app that never uses stacks is unchanged.
+- **`limit` counts per Toaster**, against its own stack: another stack's toasts never take its places.
+- **A stack's toasts wait** while no Toaster for it is mounted, the way toasts past `limit` do. A toast's time runs from when it was sent, so one older than `duration` goes the moment it would show. `clear()` removes every stack's toasts; a Toaster's own clear control removes only its stack's.
+- **History stays the main Toaster's**: every toast is in `history`, and a Toaster with a `stack` draws no history modal unless you pass `historyModal`, so opening the history never opens one per Toaster.
+- **`renderFrame`** wraps the stack inside the Toaster's Portal (when `paper` is injected), so the frame is drawn over the screen just as the stack is, and only while it has toasts. The stack is absolutely placed against the frame's edges with the safe-area insets it reads there: a turned frame should provide insets remapped onto its own edges (through `react-native-safe-area-context`'s `SafeAreaInsetsContext`), let touches through to the screen beneath it, and, turned a quarter turn, take the window's footprint turned too. Turn `keyboardAware` off in it (see the keyboard note above). On the web, see the note above on turned frames: the swipe there doesn't follow the turn.
 
 ### Portal behavior
 

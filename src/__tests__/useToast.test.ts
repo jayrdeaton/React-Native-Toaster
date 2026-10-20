@@ -52,6 +52,18 @@ describe('useToast', () => {
     expect(result.current.toasts[0].color).toBeNull()
   })
 
+  it('sends a toast to a named stack', () => {
+    const { result } = renderHook(() => useToast(), { wrapper })
+    act(() => result.current.success('Seat two', undefined, undefined, { stack: 'seat-2' }))
+    expect(result.current.toasts[0].stack).toBe('seat-2')
+  })
+
+  it('sends a toast to no stack (the main Toaster) by default', () => {
+    const { result } = renderHook(() => useToast(), { wrapper })
+    act(() => result.current.success('Done!', undefined, undefined, { color: '#FFD54F' }))
+    expect(result.current.toasts[0].stack).toBeNull()
+  })
+
   it('records toast in history', () => {
     const { result } = renderHook(() => useToast(), { wrapper })
     act(() => result.current.success('Done!'))
@@ -75,6 +87,14 @@ describe('useToast', () => {
     act(() => result.current.clear())
     expect(result.current.toasts).toHaveLength(0)
     expect(result.current.history).toHaveLength(2)
+  })
+
+  it("clear removes every stack's toasts", () => {
+    const { result } = renderHook(() => useToast(), { wrapper })
+    act(() => result.current.info('Main'))
+    act(() => result.current.info('Seat two', undefined, undefined, { stack: 'seat-2' }))
+    act(() => result.current.clear())
+    expect(result.current.toasts).toHaveLength(0)
   })
 
   it('clearHistory empties history but keeps toasts', () => {
