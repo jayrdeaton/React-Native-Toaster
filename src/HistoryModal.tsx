@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from 'react'
-import { FlatList, Modal, Pressable, type PressableStateCallbackType, StyleSheet, Text, View, type ViewStyle } from 'react-native'
+import { FlatList, Modal, type PressableStateCallbackType, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import type { Toast, ToastLevel } from './Toast'
@@ -34,7 +34,7 @@ const pressedRow = ({ pressed }: PressableStateCallbackType) => [styles.item, pr
 
 const HistoryContent = ({ backgroundColor, levelColors, style, textColor }: HistoryContentProps) => {
   const { clearHistory, closeHistory, dismiss, history } = useToast()
-  const { paper } = useToastContext()
+  const { paper, Pressable } = useToastContext()
   const insets = useSafeAreaInsets()
   const fallback = useFallbackColors()
 

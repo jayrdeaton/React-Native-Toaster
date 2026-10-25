@@ -17,6 +17,7 @@ Stacking, animated toast notifications for React Native. Toasts stack on top of 
 - Optional image support, pass an image URI to render it in place of the level icon
 - Per-toast leading node (an avatar, say) drawn at its own size in place of the icon
 - Per-toast tap action: a tapped toast runs it and dismisses itself, and a swipe never taps it
+- Optional injected `Pressable` (e.g. `@rific/feedback-press`'s, for a haptic on touch-down) used for every tap the package draws
 - No Portal dependency, place `<Toaster />` wherever you want it
 - Optional `react-native-paper` integration, inject it into `ToastProvider` to upgrade cards, buttons, and dividers to Paper components
 
@@ -41,7 +42,7 @@ npm install expo-haptics                      # haptic feedback on history/clear
 npm install react-native-paper               # Paper component upgrades (see below)
 ```
 
-Neither is auto-detected, pass them to `ToastProvider` (see below) and Toaster/HistoryModal pick them up automatically. Omit either and you get a working fallback: plain `View`/`Pressable` UI without Paper, no haptic tick without expo-haptics.
+Neither is auto-detected, pass them to `ToastProvider` (see below) and Toaster/HistoryModal pick them up automatically. Omit either and you get a working fallback: plain `View`/`Pressable` UI without Paper, no haptic tick without expo-haptics. For haptics on every tap, honoring your app's own haptics setting, inject a `Pressable` instead (see [Your own Pressable](#your-own-pressable-eg-haptics-on-every-tap)).
 
 ## Setup
 
@@ -84,9 +85,10 @@ import * as RNPaper from 'react-native-paper'
 |---|---|---|---|
 | `children` | `ReactNode` | - | |
 | `generateId` | `() => string` | `crypto.randomUUID()` fallback | Controls how toast IDs are generated. |
-| `haptics` | `HapticsModule` | - | Injects `expo-haptics` for the light haptic tick on the history/clear stack controls. Pass `import * as Haptics from 'expo-haptics'`, omit to skip haptics entirely. |
+| `haptics` | `HapticsModule` | - | Injects `expo-haptics` for the light haptic tick on the history/clear stack controls. Pass `import * as Haptics from 'expo-haptics'`, omit to skip haptics entirely. Ignored when `pressable` is set. |
 | `maxHistory` | `number` | `100` | Max entries kept in `history`. `0` disables history tracking. |
 | `paper` | `PaperModule` | - | Injects `react-native-paper` so Toaster/HistoryModal render Paper components instead of their plain RN fallback. Pass `import * as RNPaper from 'react-native-paper'`, omit to keep the zero-dependency fallback UI. |
+| `pressable` | `PressableComponent` | React Native's `Pressable` | Draws every press Toaster/HistoryModal make through this component instead, e.g. `@rific/feedback-press`'s `Pressable`. With it set, `haptics` is ignored. See [Your own Pressable](#your-own-pressable-eg-haptics-on-every-tap). |
 
 ## Usage
 
@@ -285,6 +287,23 @@ info('New note', 'From Sam', undefined, { leading: <PersonAvatar person={sam} si
 - **In the history list** the toast's row is pressable too: a tap closes the history, dismisses the toast if it's still up, and calls `onPress`, so write it to still make sense later (navigate by an id rather than act on state it captured).
 - A toast without `onPress` is exactly as before: not pressable, no button role, no feedback.
 
+### Your own Pressable (e.g. haptics on every tap)
+
+Pass a drop-in for React Native's `Pressable` to `ToastProvider` and every press the package draws goes through it: a pressable toast's card, its row in the history list, and (without Paper) the history and clear pills and the history list's header buttons. `@rific/feedback-press`'s `Pressable` gives each one a `selection` haptic on touch-down, honoring its provider's haptics toggle, like every other tap in an app built on it:
+
+```tsx
+import { Pressable } from '@rific/feedback-press'
+import * as RNPaper from 'react-native-paper'
+
+<ToastProvider paper={RNPaper} pressable={Pressable}>
+```
+
+- **It's handed `Pressable`'s own props** (`onPress`, `onPressIn`, a `style` callback for the pressed look, the accessibility props), so it must pass them all on. The package doesn't depend on feedback-press: any component with `Pressable`'s props works.
+- **`haptics` steps aside:** with `pressable` set, the `haptics` tick on the history and clear controls is skipped, so no press gives feedback twice.
+- **Paper's own controls are Paper's:** with `paper` injected, the history and clear controls are Paper `Chip`s and the history header's are `IconButton`s, drawn from the module you pass. For feedback on those too, put feedback-press's Paper wrappers in it: `paper={{ ...RNPaper, Chip, IconButton }}`.
+- **Its providers must sit above Paper's:** with `paper` the stack renders through Paper's `Portal`, at Paper's `Portal.Host`, so a context your pressable reads (feedback-press's `FeedbackPressProvider`, for the toggle) must be an ancestor of the Paper provider, not only of `ToastProvider`.
+- **Touch-down feedback comes before a swipe can start**, so a touch that becomes a swipe still gets it, as a list row in a scroll view does.
+
 ### Top position
 
 Toasts stack downward from the top edge. Entry and exit animations flip automatically, new toasts drop in from above, and the stack grows downward.
@@ -400,7 +419,7 @@ Inject `react-native-paper` into `ToastProvider` (`<ToastProvider paper={RNPaper
 | Without Paper | With Paper |
 |---|---|
 | Plain `View` cards | `Surface` with configurable elevation |
-| Plain `Pressable` buttons | `Button` and `IconButton` |
+| Plain `Pressable` buttons (or your [injected one](#your-own-pressable-eg-haptics-on-every-tap)) | `Chip` and `IconButton` |
 | Manual `borderBottom` dividers | `Divider` component |
 | Manual portal wrapping | Automatic `Portal` wrapping |
 | No icon adapter | `Icon` adapter wired automatically |

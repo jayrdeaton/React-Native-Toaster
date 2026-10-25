@@ -1,6 +1,6 @@
 import { SwipeToDismiss } from '@rific/gestures'
 import { type ComponentType, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Image, type LayoutChangeEvent, Pressable, type PressableStateCallbackType, type StyleProp, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native'
+import { Image, type LayoutChangeEvent, type PressableStateCallbackType, type StyleProp, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native'
 import Animated, { LinearTransition, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -9,7 +9,7 @@ import { exitsOutward, toastEntering, toastExiting } from './motion'
 import { computeStackOffsets } from './stackLayout'
 import type { Toast, ToastLevel } from './Toast'
 import { LEVEL_COLORS, toastLabel } from './Toast'
-import { type PaperModule, useToastContext } from './ToastContext'
+import { type PaperModule, type PressableComponent, useToastContext } from './ToastContext'
 import { useFallbackColors } from './useFallbackColors'
 import { useToast } from './useToast'
 
@@ -90,6 +90,8 @@ type ToastItemProps = {
   outwardExit: boolean
   paper: PaperModule | null
   position: 'bottom' | 'top'
+  /** Handed down rather than read from context: with Paper the item renders through its Portal, outside ToastProvider. */
+  Pressable: PressableComponent
   surfaceElevation?: 0 | 1 | 2 | 3 | 4 | 5
   textColor?: string
   theme?: PaperTheme
@@ -97,7 +99,7 @@ type ToastItemProps = {
   toastStyle?: ViewStyle
 }
 
-const ToastItem = memo(({ backgroundColor, Card, captionStyle, duration, Icon, labelStyle, levelColor, levelIcon, offset, onDismiss, onMeasure, outwardExit, paper, position, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
+const ToastItem = memo(({ backgroundColor, Card, captionStyle, duration, Icon, labelStyle, levelColor, levelIcon, offset, onDismiss, onMeasure, outwardExit, paper, position, Pressable, surfaceElevation, textColor, theme, toast, toastStyle }: ToastItemProps) => {
   const fallback = useFallbackColors()
 
   const effectiveBg = backgroundColor ?? theme?.colors.surface ?? fallback.surface
@@ -188,7 +190,7 @@ ToastItem.displayName = 'ToastItem'
 
 export const Toaster = ({ backgroundColor, Card, captionStyle, clearButton, duration = 7000, historyButton, historyModal, Icon, keyboardAware = true, keyboardOffset = 0, labelStyle, levelColors, levelIcons, limit = 3, onHistoryPress, position = 'bottom', renderFrame, stack: stackName, surfaceElevation, textColor, theme, toastStyle, wrapperStyle }: ToasterProps) => {
   const { clear, dismiss, history, historyVisible, openHistory, toasts } = useToast()
-  const { dispatch, haptics, paper, paperTheme } = useToastContext()
+  const { dispatch, haptics, paper, paperTheme, Pressable } = useToastContext()
   // The stack this Toaster shows: its own name, or null (the main Toaster's, which every toast sent to no stack lands in).
   const ownStack = stackName ?? null
   const resolvedTheme = theme ?? paperTheme ?? undefined
@@ -319,7 +321,7 @@ export const Toaster = ({ backgroundColor, Card, captionStyle, clearButton, dura
         </Animated.View>
       </Animated.View>
       {visibleToasts.map((toast, index) => (
-        <ToastItem key={toast.id} backgroundColor={backgroundColor} Card={Card} captionStyle={captionStyle} duration={duration} Icon={Icon} labelStyle={labelStyle} levelColor={mergedColors[toast.level]} levelIcon={effectiveLevelIcons?.[toast.level]} offset={offsets[index]} onDismiss={dismiss} onMeasure={handleMeasure} outwardExit={exitsOutward(index, visibleToasts.length)} paper={paper} position={position} surfaceElevation={surfaceElevation} textColor={textColor} theme={resolvedTheme} toast={toast} toastStyle={toastStyle} />
+        <ToastItem key={toast.id} backgroundColor={backgroundColor} Card={Card} captionStyle={captionStyle} duration={duration} Icon={Icon} labelStyle={labelStyle} levelColor={mergedColors[toast.level]} levelIcon={effectiveLevelIcons?.[toast.level]} offset={offsets[index]} onDismiss={dismiss} onMeasure={handleMeasure} outwardExit={exitsOutward(index, visibleToasts.length)} paper={paper} position={position} Pressable={Pressable} surfaceElevation={surfaceElevation} textColor={textColor} theme={resolvedTheme} toast={toast} toastStyle={toastStyle} />
       ))}
     </Animated.View>
   )

@@ -1,5 +1,5 @@
 import { type ComponentType, createContext, type Dispatch, type ReactNode, useContext, useReducer } from 'react'
-import type { StyleProp, ViewStyle } from 'react-native'
+import { Pressable as NativePressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native'
 
 import { defaultGenerateId, type Toast } from './Toast'
 import type { PaperTheme } from './Toaster'
@@ -34,6 +34,10 @@ export type HapticsModule = {
   impactAsync: (style?: any) => Promise<void>
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** A drop-in for React Native's `Pressable`, handed its props unchanged (`onPress`, `onPressIn`, a `style` callback, accessibility props),
+ * e.g. `@rific/feedback-press`'s, which adds a haptic on touch-down. */
+export type PressableComponent = ComponentType<PressableProps>
 
 type ToastState = {
   history: Toast[]
@@ -72,6 +76,8 @@ type ToastContextValue = {
   maxHistory: number
   paper: PaperModule | null
   paperTheme: PaperTheme | null
+  /** The injected `pressable`, or React Native's own. */
+  Pressable: PressableComponent
   state: ToastState
 }
 
@@ -80,17 +86,23 @@ const ToastContext = createContext<ToastContextValue | null>(null)
 export type ToastProviderProps = {
   children: ReactNode
   generateId?: () => string
-  /** Injects expo-haptics for the light haptic tick on the history/clear stack controls. Pass `import * as Haptics from 'expo-haptics'`; omit to skip haptics entirely. */
+  /** Injects expo-haptics for the light haptic tick on the history/clear stack controls. Pass `import * as Haptics from 'expo-haptics'`; omit to skip haptics entirely. Ignored when `pressable` is given, which owns press feedback then. */
   haptics?: HapticsModule
   maxHistory?: number
   /** Injects react-native-paper so Toaster/HistoryModal render Paper components instead of their plain RN fallback. Pass `import * as RNPaper from 'react-native-paper'`; omit to keep the zero-dependency fallback UI. */
   paper?: PaperModule
+  /** Draws every press Toaster/HistoryModal make (a pressable toast, its history row, the fallback history/clear pills and history header
+   * buttons) through this component in place of React Native's `Pressable`, e.g. `@rific/feedback-press`'s for a haptic on touch-down.
+   * Paper's own controls come from `paper`. With this set, `haptics` is ignored, so no press ticks twice. */
+  pressable?: PressableComponent
 }
 
-export const ToastProvider = ({ children, generateId = defaultGenerateId, haptics, maxHistory = 100, paper }: ToastProviderProps) => {
+export const ToastProvider = ({ children, generateId = defaultGenerateId, haptics, maxHistory = 100, paper, pressable }: ToastProviderProps) => {
   const [state, dispatch] = useReducer(reducer, { history: [], historyVisible: false, toasts: [] })
   const paperTheme = paper ? paper.useTheme() : null
-  return <ToastContext.Provider value={{ dispatch, generateId, haptics: haptics ?? null, maxHistory, paper: paper ?? null, paperTheme, state }}>{children}</ToastContext.Provider>
+  // An injected pressable gives its own feedback, so the history/clear tick steps aside rather than firing on top of it
+  const resolvedHaptics = pressable ? null : (haptics ?? null)
+  return <ToastContext.Provider value={{ dispatch, generateId, haptics: resolvedHaptics, maxHistory, paper: paper ?? null, paperTheme, Pressable: pressable ?? NativePressable, state }}>{children}</ToastContext.Provider>
 }
 
 export const useToastContext = () => {

@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
+import { Pressable, type PressableProps } from 'react-native'
 import { FadeInDown, FadeInUp, FadeOutDown, FadeOutUp } from 'react-native-reanimated'
 
 import { lastToastMotion } from '../__mocks__/react-native-reanimated'
@@ -568,5 +569,120 @@ describe('optional peer injection (paper/haptics)', () => {
     }).not.toThrow()
 
     expect(container!.textContent).toContain('Outside the provider tree')
+  })
+})
+
+// `pressable` stands in for React Native's Pressable everywhere the package draws one, e.g. @rific/feedback-press's for a haptic on
+// touch-down. This one hands the (mocked) Pressable every prop it's given and notes each press before passing it on, as feedback-press
+// fires its haptic and then calls through. The mock only clicks, so a press here is the click; feedback-press itself fires on press-in.
+describe('injected pressable', () => {
+  const feedback = jest.fn()
+  const FeedbackPressable = ({ onPress, ...props }: PressableProps) => (
+    <Pressable
+      {...props}
+      onPress={(event) => {
+        feedback()
+        onPress?.(event)
+      }}
+    />
+  )
+
+  // The mocked Modal draws the history whether open or not, so a pressable toast's history row carries the same label as its card
+  const cardOf = (name: string) => within(screen.getByTestId('swipe-to-dismiss')).getByRole('button', { name })
+
+  beforeEach(() => feedback.mockClear())
+
+  it('presses a pressable toast through it, which still calls onPress and dismisses the toast', () => {
+    const onPress = jest.fn()
+    const { getApi } = renderToaster(3, { pressable: FeedbackPressable })
+    act(() => getApi().info('New note', 'From Sam', undefined, { onPress }))
+
+    const button = cardOf('New note, From Sam')
+    expect(JSON.parse(button.getAttribute('data-rn-pressed-style') ?? '{}').opacity).toBe(0.7)
+    act(() => {
+      fireEvent.click(button)
+    })
+    expect(feedback).toHaveBeenCalledTimes(1)
+    expect(onPress).toHaveBeenCalledTimes(1)
+    expect(getApi().toasts).toEqual([])
+  })
+
+  it('draws the fallback clear and history pills through it', () => {
+    const { getApi } = renderToaster(3, { pressable: FeedbackPressable })
+    act(() => getApi().success('First'))
+    act(() => {
+      fireEvent.click(screen.getByText('✕'))
+    })
+    expect(feedback).toHaveBeenCalledTimes(1)
+    expect(getApi().toasts).toEqual([])
+
+    act(() => getApi().success('Second'))
+    act(() => {
+      fireEvent.click(screen.getByText('history'))
+    })
+    expect(feedback).toHaveBeenCalledTimes(2)
+    expect(getApi().historyVisible).toBe(true)
+  })
+
+  it("draws the history's rows and fallback header buttons through it", () => {
+    const onPress = jest.fn()
+    const { getApi } = renderToaster(3, { pressable: FeedbackPressable })
+    act(() => getApi().info('New note', undefined, undefined, { onPress }))
+    act(() => getApi().openHistory())
+
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'New note' }))
+    })
+    expect(feedback).toHaveBeenCalledTimes(1)
+    expect(onPress).toHaveBeenCalledTimes(1)
+
+    act(() => getApi().success('Another'))
+    act(() => getApi().openHistory())
+    // The mocked Modal draws its content whether open or not, so the header's buttons are there to press.
+    act(() => {
+      fireEvent.click(screen.getByText('Clear'))
+    })
+    expect(feedback).toHaveBeenCalledTimes(2)
+    expect(getApi().history).toEqual([])
+  })
+
+  it('leaves the haptics tick off when both are given, so a press gives feedback once', () => {
+    const impactAsync = jest.fn().mockResolvedValue(undefined)
+    const { getApi } = renderToaster(3, { haptics: { ImpactFeedbackStyle: { Light: 'light' }, impactAsync }, pressable: FeedbackPressable })
+    act(() => getApi().success('First'))
+    act(() => {
+      fireEvent.click(screen.getByText('✕'))
+    })
+    expect(feedback).toHaveBeenCalledTimes(1)
+    expect(impactAsync).not.toHaveBeenCalled()
+  })
+
+  it("presses a toast through it with Paper too, and leaves Paper's own controls to `paper`", () => {
+    const paper: PaperModule = {
+      Chip: ({ children, onPress }) => (
+        <button onClick={onPress} type='button'>
+          {children}
+        </button>
+      ),
+      Divider: () => <hr />,
+      Icon: () => null,
+      IconButton: () => null,
+      Portal: ({ children }) => <>{children}</>,
+      Surface: ({ children }) => <>{children}</>,
+      useTheme: () => ({ colors: { background: '#fff', onSurface: '#000', surface: '#eee' } })
+    }
+    const { getApi } = renderToaster(3, { paper, pressable: FeedbackPressable })
+    act(() => getApi().info('New note', undefined, undefined, { onPress: jest.fn() }))
+
+    act(() => {
+      fireEvent.click(cardOf('New note'))
+    })
+    expect(feedback).toHaveBeenCalledTimes(1)
+    act(() => getApi().info('Plain'))
+    act(() => {
+      fireEvent.click(screen.getByText('clear'))
+    })
+    expect(feedback).toHaveBeenCalledTimes(1)
+    expect(getApi().toasts).toEqual([])
   })
 })
