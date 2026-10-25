@@ -8,7 +8,7 @@ export const useToast = () => {
 
   const add = useCallback(
     (level: ToastLevel, title: string, caption?: string, image?: string, overrides?: ToastOverrides) => {
-      const toast = new Toast({ caption, color: overrides?.color, icon: overrides?.icon, id: generateId(), image, level, stack: overrides?.stack, title })
+      const toast = new Toast({ caption, color: overrides?.color, icon: overrides?.icon, id: generateId(), image, leading: overrides?.leading, level, onPress: overrides?.onPress, stack: overrides?.stack, title })
       dispatch({ maxHistory, toast: { ...toast }, type: 'ADD' })
     },
     [dispatch, generateId, maxHistory]

@@ -15,6 +15,8 @@ Stacking, animated toast notifications for React Native. Toasts stack on top of 
 - Four built-in levels: `error`, `warning`, `info`, `success`
 - Optional icon support via any icon library
 - Optional image support, pass an image URI to render it in place of the level icon
+- Per-toast leading node (an avatar, say) drawn at its own size in place of the icon
+- Per-toast tap action: a tapped toast runs it and dismisses itself, and a swipe never taps it
 - No Portal dependency, place `<Toaster />` wherever you want it
 - Optional `react-native-paper` integration, inject it into `ToastProvider` to upgrade cards, buttons, and dividers to Paper components
 
@@ -252,12 +254,36 @@ Passing an `image` URI renders it in a small square in place of the level icon.
 
 ### Per-toast icon/color overrides
 
-`levelColors`/`levelIcons` style every toast of a given level the same way. For a toast whose icon and color are its own identity rather than its level's - a badge, an achievement, a category tag - pass a fourth `overrides` argument to override just that one toast, falling back to the level's own icon/color for whichever half you omit (its third field, `stack`, sends the toast to another Toaster: see [A Toaster per player](#a-toaster-per-player)):
+`levelColors`/`levelIcons` style every toast of a given level the same way. For a toast whose icon and color are its own identity rather than its level's - a badge, an achievement, a category tag - pass a fourth `overrides` argument to override just that one toast, falling back to the level's own icon/color for whichever half you omit (its other fields: `leading` and `onPress`, below, and `stack`, which sends the toast to another Toaster: see [A Toaster per player](#a-toaster-per-player)):
 
 ```tsx
 success('Flawless Victory', undefined, undefined, { color: '#FFD54F', icon: 'shield-star' })
 success('First Blood', undefined, undefined, { color: '#CD7F32', icon: 'sword' })
 ```
+
+### A leading node (e.g. an avatar)
+
+For something an icon name or an image URI can't draw, such as a person's avatar with their initial in their own color, pass `leading` in the overrides: an element of your own, drawn at the card's leading edge at whatever size it is, in place of the image, icon or indicator. It wins over `image`, `icon` and `color` when given; a toast without one is drawn as before.
+
+```tsx
+info('New note', 'From Sam', undefined, { leading: <PersonAvatar person={sam} size={24} /> })
+```
+
+The history list's rows keep their level's color bar (they draw no image or icon either).
+
+### Tapping a toast
+
+Pass `onPress` in the overrides to make a toast's card a button: a tap calls it and dismisses that toast.
+
+```tsx
+info('New note', 'From Sam', undefined, { leading: <PersonAvatar person={sam} size={24} />, onPress: () => router.push(`/apps/${appId}/notes`) })
+```
+
+- **Feedback:** the card dims while pressed (opacity, with or without Paper). It reads to a screen reader as a button labelled with its title and caption.
+- **Swipes still dismiss it**, and a swipe never also taps it: the press sits inside the swipe's own wrapper, so on iOS and Android the gesture runtime cancels the press once the swipe takes the touch, and on the web the click that ends a swipe is caught before it presses. A tap never moves far enough to start a swipe.
+- **A custom `Card` needn't change:** the press wraps it from outside. Keep it the only pressable in the card, though: react-native-web draws it as a `<button>`, and a button can't hold another one.
+- **In the history list** the toast's row is pressable too: a tap closes the history, dismisses the toast if it's still up, and calls `onPress`, so write it to still make sense later (navigate by an id rather than act on state it captured).
+- A toast without `onPress` is exactly as before: not pressable, no button role, no feedback.
 
 ### Top position
 
@@ -346,6 +372,8 @@ import { HistoryModal } from '@rific/toaster'
 
 When `paper` is injected into `ToastProvider`, the Done button, Clear history button, and row dividers are upgraded to Paper components automatically.
 
+A toast sent with `onPress` is a pressable row here: a tap closes the history, dismisses the toast if it's still up, and calls `onPress` (see [Tapping a toast](#tapping-a-toast)).
+
 ### Custom Container (e.g. a bottom sheet)
 
 `HistoryModal` has no dependency on any sheet library: it renders a vanilla `Modal` by default. If you want a bottom-sheet presentation instead, pass your own `Container` component built on whatever library you like, e.g. the sibling package [`@rific/drawer`](https://www.npmjs.com/package/@rific/drawer), whose standalone `Drawer` component takes `open`/`onClose`/`children`, a near-exact match for `Container`'s own contract:
@@ -399,6 +427,9 @@ class Toast {
   image: string | null  // URI, renders an image instead of the level icon
   icon: string | null   // per-toast icon override - see "Per-toast icon/color overrides"
   color: string | null  // per-toast color override - see "Per-toast icon/color overrides"
+  leading: ReactNode    // drawn in place of the image/icon, null for none - see "A leading node"
+  onPress: (() => void) | null  // makes the card a button - see "Tapping a toast"
+  stack: string | null  // the <Toaster stack> that shows it, null for the main one - see "A Toaster per player"
   createdAt: string     // ISO timestamp
 }
 ```

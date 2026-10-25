@@ -1,6 +1,6 @@
 import { SwipeToDismiss } from '@rific/gestures'
 import { type ComponentType, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Image, type LayoutChangeEvent, Pressable, type StyleProp, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native'
+import { Image, type LayoutChangeEvent, Pressable, type PressableStateCallbackType, type StyleProp, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native'
 import Animated, { LinearTransition, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -8,7 +8,7 @@ import { HistoryModal } from './HistoryModal'
 import { exitsOutward, toastEntering, toastExiting } from './motion'
 import { computeStackOffsets } from './stackLayout'
 import type { Toast, ToastLevel } from './Toast'
-import { LEVEL_COLORS } from './Toast'
+import { LEVEL_COLORS, toastLabel } from './Toast'
 import { type PaperModule, useToastContext } from './ToastContext'
 import { useFallbackColors } from './useFallbackColors'
 import { useToast } from './useToast'
@@ -19,6 +19,10 @@ const DEFAULT_LEVEL_ICONS: Record<ToastLevel, string> = {
   success: 'check-circle',
   warning: 'alert'
 }
+
+// A pressable toast's card dims while pressed. Opacity rather than Paper's ripple: the press wraps the card from outside (margins and all, so a
+// host's own Card needn't change), and a ripple there would spread past the card's own shape.
+const pressFeedback = ({ pressed }: PressableStateCallbackType) => (pressed ? styles.pressed : null)
 
 type IconComponentProps = { color?: string; name: string; size?: number }
 
@@ -119,10 +123,17 @@ const ToastItem = memo(({ backgroundColor, Card, captionStyle, duration, Icon, l
 
   // A toast's own icon/color (see Toast.ts's ToastOverrides) wins over the level's shared default -
   // the achievement-badge case this exists for varies icon+color per toast even though every one
-  // of them is the same 'success' level.
+  // of them is the same 'success' level. A host's own `leading` node (e.g. an avatar) wins over
+  // all of them, drawn at whatever size it is.
   const effectiveIcon = toast.icon ?? levelIcon
   const effectiveColor = toast.color ?? levelColor
-  const icon = toast.image ? <Image source={{ uri: toast.image }} style={styles.image} /> : Icon && effectiveIcon ? <Icon color={effectiveColor} name={effectiveIcon} size={20} /> : paper && effectiveIcon ? <paper.Icon color={effectiveColor} size={20} source={effectiveIcon} /> : <View style={[styles.indicator, { backgroundColor: effectiveColor }]} />
+  const icon = toast.leading ?? (toast.image ? <Image source={{ uri: toast.image }} style={styles.image} /> : Icon && effectiveIcon ? <Icon color={effectiveColor} name={effectiveIcon} size={20} /> : paper && effectiveIcon ? <paper.Icon color={effectiveColor} size={20} source={effectiveIcon} /> : <View style={[styles.indicator, { backgroundColor: effectiveColor }]} />)
+
+  const { onPress } = toast
+  const handlePress = useCallback(() => {
+    onPress?.()
+    handleDismiss()
+  }, [handleDismiss, onPress])
 
   const cardContent = (
     <>
@@ -140,22 +151,33 @@ const ToastItem = memo(({ backgroundColor, Card, captionStyle, duration, Icon, l
     </>
   )
 
+  const card = Card ? (
+    <Card style={[styles.card, toastStyle, backgroundColor ? { backgroundColor } : undefined]} toast={toast}>
+      {cardContent}
+    </Card>
+  ) : paper ? (
+    <paper.Surface elevation={surfaceElevation ?? 1} style={[styles.card, toastStyle, backgroundColor ? { backgroundColor } : undefined]}>
+      {cardContent}
+    </paper.Surface>
+  ) : (
+    <View style={[styles.card, styles.cardShadow, { backgroundColor: effectiveBg }, toastStyle]}>{cardContent}</View>
+  )
+
   return (
     <Animated.View layout={LinearTransition.duration(220)} style={[styles.itemContainer, marginStyle]}>
       <Animated.View entering={entering} exiting={exiting} onLayout={handleLayout}>
         {/* The swipe is @rific/gestures': sideways, or off the stack's edge, measured in the toast's own coordinates, its gesture on a wrapper
-        that stays put while the card inside follows the finger. */}
+        that stays put while the card inside follows the finger. A pressable toast's press wraps the card (a host's own Card too, unchanged)
+        inside that wrapper, so it moves with the card and a swipe never presses it: on native gesture-handler cancels the press once the pan
+        takes the touch, and on the web the wrapper eats the click that ends a swipe. A tap never moves far enough to start the pan. It is the
+        only pressable in the card, since react-native-web draws it as a <button> and a button can't hold another. */}
         <SwipeToDismiss edge={position} onDismiss={handleDismiss}>
-          {Card ? (
-            <Card style={[styles.card, toastStyle, backgroundColor ? { backgroundColor } : undefined]} toast={toast}>
-              {cardContent}
-            </Card>
-          ) : paper ? (
-            <paper.Surface elevation={surfaceElevation ?? 1} style={[styles.card, toastStyle, backgroundColor ? { backgroundColor } : undefined]}>
-              {cardContent}
-            </paper.Surface>
+          {onPress ? (
+            <Pressable accessibilityLabel={toastLabel(toast)} accessibilityRole='button' onPress={handlePress} style={pressFeedback}>
+              {card}
+            </Pressable>
           ) : (
-            <View style={[styles.card, styles.cardShadow, { backgroundColor: effectiveBg }, toastStyle]}>{cardContent}</View>
+            card
           )}
         </SwipeToDismiss>
       </Animated.View>
@@ -375,6 +397,9 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     lineHeight: 20
+  },
+  pressed: {
+    opacity: 0.7
   },
   stack: {
     left: 0,

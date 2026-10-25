@@ -155,6 +155,130 @@ describe('custom card and text styles', () => {
   })
 })
 
+// `overrides.onPress` makes a toast's card a button: a tap calls it and dismisses the toast. The press sits inside the swipe's wrapper and
+// outside the card (a host's own Card too), so it moves with the card, and the swipe's own guard keeps a swipe from pressing it (on native
+// gesture-handler cancels the press once the pan takes the touch, on the web the wrapper eats the click; both @rific/gestures'). The mocked
+// Pressable is a div with its role and label that a click presses (src/__mocks__/react-native.tsx). The mocked Modal draws the history list
+// whether open or not, so a card's button is looked for inside its own swipe.
+describe('pressable toasts', () => {
+  const swipeOf = (title: string) => {
+    const wrapper = screen.getAllByTestId('swipe-to-dismiss').find((el) => el.textContent?.startsWith(title))
+    if (!wrapper) throw new Error(`No swipe wraps "${title}"`)
+    return wrapper
+  }
+
+  it('calls onPress and dismisses that toast when its card is tapped', () => {
+    const onPress = jest.fn()
+    const { getApi } = renderToaster(3)
+    act(() => {
+      getApi().info('Other')
+      getApi().info('New note', 'From Sam', undefined, { onPress })
+    })
+    const otherId = getApi().toasts[0].id
+
+    act(() => {
+      fireEvent.click(within(swipeOf('New note')).getByRole('button', { name: 'New note, From Sam' }))
+    })
+    expect(onPress).toHaveBeenCalledTimes(1)
+    expect(getApi().toasts.map((t) => t.id)).toEqual([otherId])
+  })
+
+  it('leaves a toast without onPress unpressable', () => {
+    const { getApi } = renderToaster(3)
+    act(() => getApi().info('Plain', 'Caption'))
+
+    expect(screen.queryByRole('button')).toBeNull()
+    act(() => {
+      fireEvent.click(swipeOf('Plain'))
+    })
+    expect(getApi().toasts).toHaveLength(1)
+  })
+
+  it('never presses a toast that is swiped away', () => {
+    const onPress = jest.fn()
+    const { getApi } = renderToaster(3)
+    act(() => getApi().info('New note', undefined, undefined, { onPress }))
+
+    act(() => fireEvent(swipeOf('New note'), new Event('dismiss')))
+    expect(onPress).not.toHaveBeenCalled()
+    expect(getApi().toasts).toEqual([])
+  })
+
+  it("wraps a custom Card in the press, inside the swipe's wrapper, as the card's only button", () => {
+    const Card = ({ children }: { children: ReactNode }) => <section data-testid='card'>{children}</section>
+    const { getApi } = renderToaster(3, {}, { Card, position: 'top' })
+    act(() => getApi().info('New note', undefined, undefined, { onPress: jest.fn() }))
+
+    const buttons = within(swipeOf('New note')).getAllByRole('button')
+    expect(buttons).toHaveLength(1)
+    expect(within(buttons[0]).getByTestId('card').textContent).toBe('New note')
+  })
+
+  it('dims a pressed card', () => {
+    const { getApi } = renderToaster(3)
+    act(() => getApi().info('New note', undefined, undefined, { onPress: jest.fn() }))
+
+    const button = within(swipeOf('New note')).getByRole('button', { name: 'New note' })
+    expect(JSON.parse(button.getAttribute('data-rn-style') ?? '{}').opacity).toBeUndefined()
+    expect(JSON.parse(button.getAttribute('data-rn-pressed-style') ?? '{}').opacity).toBe(0.7)
+  })
+
+  it('closes the history and does what the toast did when its history row is tapped, and leaves other rows unpressable', () => {
+    const onPress = jest.fn()
+    const { getApi } = renderToaster(3)
+    act(() => {
+      getApi().info('Plain')
+      getApi().info('New note', 'From Sam', undefined, { onPress })
+    })
+    act(() => getApi().openHistory())
+
+    // The stack is hidden while the history is open, and the mocked Modal draws its content, so the history row is the only button.
+    expect(screen.getAllByRole('button').map((el) => el.getAttribute('aria-label'))).toEqual(['New note, From Sam'])
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'New note, From Sam' }))
+    })
+    expect(onPress).toHaveBeenCalledTimes(1)
+    expect(getApi().historyVisible).toBe(false)
+    expect(getApi().toasts.map((t) => t.title)).toEqual(['Plain'])
+  })
+})
+
+// `overrides.leading` is a node of the host's own (e.g. an avatar) drawn at the card's leading edge in place of the image, icon or indicator.
+describe('leading node', () => {
+  const iconPaper: PaperModule = {
+    Chip: () => null,
+    Divider: () => null,
+    Icon: ({ color, source }) => <span>{`${source}:${color}`}</span>,
+    IconButton: () => null,
+    Portal: ({ children }) => <>{children}</>,
+    Surface: ({ children }) => <>{children}</>,
+    useTheme: () => ({ colors: { background: '#fff', onSurface: '#000', surface: '#eee' } })
+  }
+  const avatar = <b data-testid='avatar'>S</b>
+
+  it('draws the leading node in place of the icon and the image', () => {
+    const { getApi } = renderToaster(3, { paper: iconPaper })
+    act(() => getApi().info('New note', undefined, 'https://example.com/sam.jpg', { icon: 'note', leading: avatar }))
+
+    const card = screen.getByTestId('swipe-to-dismiss')
+    expect(within(card).getByTestId('avatar').textContent).toBe('S')
+    expect(card.textContent).toBe('SNew note')
+    expect(card.querySelector('img')).toBeNull()
+  })
+
+  it('keeps the image and the icon for a toast without one', () => {
+    const { container, getApi } = renderToaster(3, { paper: iconPaper })
+    act(() => {
+      getApi().info('Photo', undefined, 'https://example.com/photo.jpg')
+      getApi().info('Note', undefined, undefined, { icon: 'note' })
+    })
+
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('https://example.com/photo.jpg')
+    expect(screen.getByText(`note:${LEVEL_COLORS.info}`)).toBeTruthy()
+    expect(screen.queryByTestId('avatar')).toBeNull()
+  })
+})
+
 // A Toaster with a `stack` shows only the toasts sent there (`overrides.stack`), e.g. one per player at a face-to-face table, each laid in a
 // frame turned to face its seat (`renderFrame`); the main Toaster (no `stack`) keeps every other toast, which is every toast an app sent
 // before stacks existed. Each Toaster's stack is laid in a test-id'd frame here, since the mocked Views draw no element of their own.
@@ -302,9 +426,9 @@ describe('optional peer injection (paper/haptics)', () => {
   }
 
   it('renders the plain fallback UI when no paper module is provided', () => {
-    // The mocked View/Text/Pressable render children with no wrapping DOM element (see
-    // src/__mocks__/react-native.tsx), so text ends up as bare, unwrapped text nodes -
-    // getByText can't match an element boundary here. Check the rendered text directly instead.
+    // The mocked View renders children with no wrapping DOM element and the mocked Text and
+    // Pressable wrap theirs (see src/__mocks__/react-native.tsx), so the fallback chips' text
+    // can't be told apart by element here. Check the rendered text directly instead.
     const { container, getApi } = renderToaster(3)
     act(() => getApi().success('Plain'))
 

@@ -64,6 +64,23 @@ describe('useToast', () => {
     expect(result.current.toasts[0].stack).toBeNull()
   })
 
+  it('adds a toast with a leading node and an onPress', () => {
+    const leading = React.createElement('b', null, 'S')
+    const onPress = jest.fn()
+    const { result } = renderHook(() => useToast(), { wrapper })
+    act(() => result.current.info('New note', undefined, undefined, { leading, onPress }))
+    expect(result.current.toasts[0].leading).toBe(leading)
+    expect(result.current.toasts[0].onPress).toBe(onPress)
+    expect(result.current.history[0].onPress).toBe(onPress)
+  })
+
+  it('defaults leading/onPress to null when not given', () => {
+    const { result } = renderHook(() => useToast(), { wrapper })
+    act(() => result.current.success('Done!'))
+    expect(result.current.toasts[0].leading).toBeNull()
+    expect(result.current.toasts[0].onPress).toBeNull()
+  })
+
   it('records toast in history', () => {
     const { result } = renderHook(() => useToast(), { wrapper })
     act(() => result.current.success('Done!'))

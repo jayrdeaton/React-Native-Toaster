@@ -1,9 +1,9 @@
 import type { ComponentType, ReactNode } from 'react'
-import { FlatList, Modal, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
+import { FlatList, Modal, Pressable, type PressableStateCallbackType, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import type { ToastLevel } from './Toast'
-import { LEVEL_COLORS } from './Toast'
+import type { Toast, ToastLevel } from './Toast'
+import { LEVEL_COLORS, toastLabel } from './Toast'
 import { useToastContext } from './ToastContext'
 import { useFallbackColors } from './useFallbackColors'
 import { useToast } from './useToast'
@@ -30,8 +30,10 @@ const DefaultContainer = ({ children, onClose, visible }: HistoryContainerProps)
 
 type HistoryContentProps = Omit<HistoryModalProps, 'Container'>
 
+const pressedRow = ({ pressed }: PressableStateCallbackType) => [styles.item, pressed ? styles.pressed : null]
+
 const HistoryContent = ({ backgroundColor, levelColors, style, textColor }: HistoryContentProps) => {
-  const { clearHistory, closeHistory, history } = useToast()
+  const { clearHistory, closeHistory, dismiss, history } = useToast()
   const { paper } = useToastContext()
   const insets = useSafeAreaInsets()
   const fallback = useFallbackColors()
@@ -42,16 +44,33 @@ const HistoryContent = ({ backgroundColor, levelColors, style, textColor }: Hist
 
   const divider = paper ? <paper.Divider /> : <View style={[styles.divider, { backgroundColor: text + '22' }]} />
 
-  const renderItem = ({ item }: { item: (typeof history)[0] }) => (
-    <View style={styles.item}>
-      <View style={[styles.indicator, { backgroundColor: mergedColors[item.level] }]} />
-      <View style={styles.itemContent}>
-        <Text style={[styles.itemTitle, { color: text }]}>{item.title ?? item.caption}</Text>
-        {item.title && item.caption ? <Text style={[styles.itemCaption, { color: text }]}>{item.caption}</Text> : null}
-        <Text style={[styles.itemTime, { color: text }]}>{new Date(item.createdAt).toLocaleTimeString()}</Text>
-      </View>
-    </View>
-  )
+  // A pressable toast stays pressable here: a tap closes the history, dismisses the toast if it's still up, and calls its onPress, as tapping
+  // its card would have. Rows keep their level's color bar rather than the toast's leading node, image or icon.
+  const pressItem = (item: Toast) => {
+    closeHistory()
+    dismiss(item.id)
+    item.onPress?.()
+  }
+
+  const renderItem = ({ item }: { item: (typeof history)[0] }) => {
+    const content = (
+      <>
+        <View style={[styles.indicator, { backgroundColor: mergedColors[item.level] }]} />
+        <View style={styles.itemContent}>
+          <Text style={[styles.itemTitle, { color: text }]}>{item.title ?? item.caption}</Text>
+          {item.title && item.caption ? <Text style={[styles.itemCaption, { color: text }]}>{item.caption}</Text> : null}
+          <Text style={[styles.itemTime, { color: text }]}>{new Date(item.createdAt).toLocaleTimeString()}</Text>
+        </View>
+      </>
+    )
+    return item.onPress ? (
+      <Pressable accessibilityLabel={toastLabel(item)} accessibilityRole='button' onPress={() => pressItem(item)} style={pressedRow}>
+        {content}
+      </Pressable>
+    ) : (
+      <View style={styles.item}>{content}</View>
+    )
+  }
 
   const listProps = {
     contentContainerStyle: [history.length === 0 ? styles.emptyContainer : undefined, { paddingBottom: insets.bottom }],
@@ -163,6 +182,9 @@ const styles = StyleSheet.create({
   itemTitle: {
     fontSize: 14,
     lineHeight: 20
+  },
+  pressed: {
+    opacity: 0.7
   },
   title: {
     flex: 1,
