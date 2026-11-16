@@ -17,9 +17,12 @@ export const LEVEL_COLORS: Record<ToastLevel, string> = {
 // size, in place of the image, icon or indicator. `onPress` makes the card a button: a tap calls it
 // and dismisses the toast. `stack` sends the toast to the <Toaster stack> of that name instead of
 // the app's main one (see Toaster.tsx's `stack` prop): e.g. a second Toaster turned to face a
-// player across the table.
+// player across the table. `duration` is how long this toast stays, in ms, in place of its
+// Toaster's `duration`; `Infinity` keeps it up until it's tapped, swiped away or dismissed, for a
+// notice someone may want to finish what they're doing before acting on (an update ready to install).
 export type ToastOverrides = {
   color?: string
+  duration?: number
   icon?: string
   leading?: ReactNode
   onPress?: () => void
@@ -41,6 +44,8 @@ export class Toast {
   caption: string | null
   color: string | null
   createdAt: string
+  /** Ms it stays, in place of its Toaster's `duration` (null to use that); `Infinity` until it's tapped, swiped away or dismissed. */
+  duration: number | null
   icon: string | null
   id: string
   image: string | null
@@ -57,6 +62,7 @@ export class Toast {
     this.caption = data?.caption ?? null
     this.color = data?.color ?? null
     this.createdAt = data?.createdAt ?? new Date().toISOString()
+    this.duration = data?.duration ?? null
     this.icon = data?.icon ?? null
     this.id = data?.id ?? defaultGenerateId()
     this.image = data?.image ?? null

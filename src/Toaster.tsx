@@ -43,6 +43,7 @@ export type ToasterProps = {
   /** Merged over the caption's built-in style (12/16, the text color at 75% opacity). */
   captionStyle?: StyleProp<TextStyle>
   clearButton?: ReactNode
+  /** Ms before each toast goes on its own (7000), unless the toast has a `duration` of its own; `Infinity` keeps them until dismissed. */
   duration?: number
   historyButton?: ReactNode
   historyModal?: ReactNode
@@ -108,16 +109,20 @@ const ToastItem = memo(({ backgroundColor, Card, captionStyle, duration, Icon, l
   const handleDismiss = useCallback(() => onDismiss(toast.id), [onDismiss, toast.id])
   const handleLayout = useCallback((e: LayoutChangeEvent) => onMeasure(toast.id, e.nativeEvent.layout.height), [onMeasure, toast.id])
 
+  // The toast's own duration over its Toaster's. One that isn't finite (Infinity) never times out: it stays until it's tapped, swiped
+  // away or dismissed (and setTimeout would fire an Infinity delay at once)
+  const lifetime = toast.duration ?? duration
   useEffect(() => {
+    if (!Number.isFinite(lifetime)) return
     const elapsed = Math.max(0, Date.now() - new Date(toast.createdAt).getTime())
-    const remaining = Math.max(0, duration - elapsed)
+    const remaining = Math.max(0, lifetime - elapsed)
     if (remaining === 0) {
       handleDismiss()
       return
     }
     const timer = setTimeout(handleDismiss, remaining)
     return () => clearTimeout(timer)
-  }, [toast.id, toast.createdAt, duration, handleDismiss])
+  }, [toast.id, toast.createdAt, lifetime, handleDismiss])
 
   const entering = toastEntering(position)
   const exiting = toastExiting(position, outwardExit)

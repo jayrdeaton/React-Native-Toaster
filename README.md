@@ -9,7 +9,7 @@ Stacking, animated toast notifications for React Native. Toasts stack on top of 
 - Stacking toasts from the top or bottom edge with animated entry, exit, and reflow
 - Stack spacing automatically adapts to each toast's real measured height, long captions or wrapped titles never overlap the toast next to them
 - Swipe-to-dismiss sideways or back off the stack's edge, with a quick flick enough on its own and a spring snap-back below threshold
-- Auto-dismiss with per-toast elapsed time tracking (resumable across re-renders)
+- Auto-dismiss with per-toast elapsed time tracking (resumable across re-renders), and a per-toast `duration`, `Infinity` for a toast that stays until it's dismissed
 - Keyboard-aware positioning, shifts above the software keyboard automatically
 - Toast history (up to 100 entries, survives individual dismissals)
 - Four built-in levels: `error`, `warning`, `info`, `success`
@@ -160,7 +160,7 @@ useUpdateErrorToast(title?: string): (message: string) => void
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `limit` | `number` | `3` | Max toasts visible at once. Excess shown as "N more" badge. |
-| `duration` | `number` | `7000` | Ms before each toast auto-dismisses. |
+| `duration` | `number` | `7000` | Ms before each toast auto-dismisses, unless the toast has a `duration` of its own (see [A toast that stays](#a-toast-that-stays)). `Infinity` keeps every toast up until it's dismissed. |
 | `position` | `'bottom' \| 'top'` | `'bottom'` | Which edge to stack from. |
 | `keyboardAware` | `boolean` | `true` | Shifts above the software keyboard when open. |
 | `keyboardOffset` | `number` | `0` | Extra bottom spacing added on top of the keyboard-aware inset (bottom position only). |
@@ -286,6 +286,16 @@ info('New note', 'From Sam', undefined, { leading: <PersonAvatar person={sam} si
 - **A custom `Card` needn't change:** the press wraps it from outside. Keep it the only pressable in the card, though: react-native-web draws it as a `<button>`, and a button can't hold another one.
 - **In the history list** the toast's row is pressable too: a tap closes the history, dismisses the toast if it's still up, and calls `onPress`, so write it to still make sense later (navigate by an id rather than act on state it captured).
 - A toast without `onPress` is exactly as before: not pressable, no button role, no feedback.
+
+### A toast that stays
+
+Pass `duration` in the overrides to give one toast its own time, in ms, in place of the Toaster's. `Infinity` keeps it up until it's tapped, swiped away or dismissed: for a notice someone may want to finish what they're doing before acting on.
+
+```tsx
+info('Update ready', 'Tap to restart', undefined, { duration: Infinity, onPress: restart })
+```
+
+A toast that stays still counts toward the Toaster's `limit`, so with the default 3 it leaves two places for the rest. On a `top` stack it keeps covering whatever it sits over, often a screen's header and back button, so a toast that stays usually goes to a `bottom` [stack of its own](#a-toaster-per-player).
 
 ### Your own Pressable (e.g. haptics on every tap)
 
@@ -449,6 +459,7 @@ class Toast {
   leading: ReactNode    // drawn in place of the image/icon, null for none - see "A leading node"
   onPress: (() => void) | null  // makes the card a button - see "Tapping a toast"
   stack: string | null  // the <Toaster stack> that shows it, null for the main one - see "A Toaster per player"
+  duration: number | null  // ms it stays, over the Toaster's; Infinity until dismissed - see "A toast that stays"
   createdAt: string     // ISO timestamp
 }
 ```

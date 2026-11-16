@@ -42,6 +42,69 @@ describe('Toaster', () => {
   })
 })
 
+// A toast goes after its Toaster's duration, or its own; one that isn't finite stays until it's tapped, swiped away or dismissed
+// (Lumber's update notice, 2026-11-16)
+describe('duration', () => {
+  beforeEach(() => jest.useFakeTimers())
+  afterEach(() => jest.useRealTimers())
+
+  const titles = (getApi: () => ToastApi) => getApi().toasts.map((t) => t.title)
+  const wait = (ms: number) => act(() => jest.advanceTimersByTime(ms))
+
+  it("goes after the Toaster's duration", () => {
+    const { getApi } = renderToaster(3, {}, { duration: 4000 })
+    act(() => getApi().info('Saved'))
+    wait(3999)
+    expect(titles(getApi)).toEqual(['Saved'])
+    wait(1)
+    expect(titles(getApi)).toEqual([])
+  })
+
+  it("takes a toast's own duration over the Toaster's, shorter or longer", () => {
+    const { getApi } = renderToaster(3, {}, { duration: 4000 })
+    act(() => {
+      getApi().info('Quick', undefined, undefined, { duration: 1000 })
+      getApi().info('Slow', undefined, undefined, { duration: 10_000 })
+      getApi().info('Default')
+    })
+    wait(1000)
+    expect(titles(getApi)).toEqual(['Slow', 'Default'])
+    wait(3000)
+    expect(titles(getApi)).toEqual(['Slow'])
+    wait(6000)
+    expect(titles(getApi)).toEqual([])
+  })
+
+  it('keeps a toast with an Infinity duration until it is tapped, swiped away or dismissed', () => {
+    const onPress = jest.fn()
+    const { getApi } = renderToaster(3, {}, { duration: 4000 })
+    act(() => {
+      getApi().info('Update ready', 'Tap to restart', undefined, { duration: Infinity, onPress })
+      getApi().info('Swipe me', undefined, undefined, { duration: Infinity })
+      getApi().info('Dismiss me', undefined, undefined, { duration: Infinity })
+    })
+    wait(3 * 24 * 60 * 60 * 1000)
+    expect(titles(getApi)).toEqual(['Update ready', 'Swipe me', 'Dismiss me'])
+
+    const card = screen.getAllByTestId('swipe-to-dismiss').find((el) => el.textContent?.startsWith('Update ready'))!
+    act(() => {
+      fireEvent.click(within(card).getByRole('button', { name: 'Update ready, Tap to restart' }))
+    })
+    expect(onPress).toHaveBeenCalledTimes(1)
+    const swiped = screen.getAllByTestId('swipe-to-dismiss').find((el) => el.textContent === 'Swipe me')!
+    act(() => fireEvent(swiped, new Event('dismiss')))
+    act(() => getApi().dismiss(getApi().toasts[0].id))
+    expect(titles(getApi)).toEqual([])
+  })
+
+  it('keeps every toast of a Toaster whose own duration is Infinity', () => {
+    const { getApi } = renderToaster(3, {}, { duration: Infinity })
+    act(() => getApi().warning('Offline'))
+    wait(60 * 60 * 1000)
+    expect(titles(getApi)).toEqual(['Offline'])
+  })
+})
+
 // The swipe itself is @rific/gestures' and is tested there. Its SwipeToDismiss is mocked as a div carrying the `edge` it was given, which a
 // 'dismiss' event fired on stands for a swipe flying the toast off (src/__mocks__/@rific/gestures.tsx). Here: every toast's card is wrapped
 // in one that also swipes off its stack's edge, and a swipe completing dismisses that toast and no other.
