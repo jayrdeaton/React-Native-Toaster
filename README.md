@@ -64,7 +64,7 @@ export default function App() {
 }
 ```
 
-`ToastProvider` accepts an optional `generateId` prop if you need to control how toast IDs are generated. By default IDs use `crypto.randomUUID()` when available and fall back to a `timestamp-sequence` string.
+`ToastProvider` accepts an optional `generateId` prop if you need to control how toast IDs are generated. By default IDs use `crypto.randomUUID()` when available and fall back to a `timestamp-sequence` string. That default is exported as `defaultGenerateId`, for a `generateId` that only changes some IDs and hands the rest back to it.
 
 ```tsx
 <ToastProvider generateId={() => myIdLibrary.generate()}>
@@ -253,6 +253,8 @@ Passing an `image` URI renders it in a small square in place of the level icon.
   }}
 />
 ```
+
+Levels you leave out keep their defaults, exported as `LEVEL_COLORS` (`error` `#ef4444`, `info` `#3b82f6`, `success` `#22c55e`, `warning` `#f97316`), so something drawn outside the Toaster can match a level's color.
 
 ### Per-toast icon/color overrides
 
